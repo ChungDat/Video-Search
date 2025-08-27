@@ -89,7 +89,7 @@ Video Search
 
 1. Ensure the Qdrant Docker container is running.  
 2. Open `qdrant.ipynb` and run all cells up to **Enable Indexing**.  
-3. Activate the environment, cd to the directory and:
+3. Activate the environment, cd to the directory and run:
    ```bash
    streamlit run strlit.py
    ```
