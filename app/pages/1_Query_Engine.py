@@ -1,29 +1,30 @@
 import streamlit as st
 import os
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 from PATH import KEYFRAMES_PATH, METADATA_PATH, MAP_KEYFRAMES_PATH
-from utils import get_video_metadata, get_keyframe_url, get_keyframe_start_time
-from strlit_utils import *
-from strlit_state import init_session_state
+from utils import *
+from state import init_session_state
+
+st.set_page_config(page_title="Query Engine", layout='wide')
+st.sidebar.header("Query Engine")
 
 COLLECTION_NAME = "my_collection"
 model = load_model()
 client = load_client()
-
-st.set_page_config(page_title="Visual Browser Search", layout="wide")
-st.sidebar.title("Options")
 init_session_state()
 
 st.selectbox(
     label="Select Query Mode",
     options=["Text Query", "Image Query"],
-    index=0,
     key="query_mode",
-    width=200,
+    width=150,
 )
 
 if st.session_state.query_mode == "Text Query":
     st.subheader("Text Query")
-    input_container = st.container(height=150, border=True, key='queries_scroll')
+    input_container = st.container(height=150, border=True, key='query_scroll')
     with input_container:
         for i, inp in enumerate(st.session_state.inputs):
             cols = st.columns([0.6, 0.2, 0.1])
@@ -32,7 +33,7 @@ if st.session_state.query_mode == "Text Query":
                     f"Query",
                     key=f"query_{inp['id']}",
                     height=100,
-                    on_change=update_input,
+                    on_change=update_input_query,
                     args=(i,),
                 )
             with cols[1]:
@@ -40,14 +41,14 @@ if st.session_state.query_mode == "Text Query":
                     label="Tag",
                     options=st.session_state.tags,
                     key=f"tag_{inp['id']}",
-                    on_change=update_tags,
+                    on_change=update_input_tags,
                     args=(i,),
                 )
             with cols[2]:
                 if len(st.session_state.inputs) > 1:
                     st.button(
                         label="🗑️", 
-                        key=f"remove_{inp['id']}", 
+                        key=f"remove_input_{inp['id']}", 
                         on_click=remove_input, 
                         args=(inp["id"],),
                     )
@@ -61,17 +62,50 @@ elif st.session_state.query_mode == "Image Query":
         key="image_upload",
     )
 
-button_container = st.container(height='content', key='buttons')
-with button_container:
-    cols = st.columns([0.15, 0.15, 0.15, 1 - 0.45])
+query_widget_container = st.container(height='content', key='query_widget')
+with query_widget_container:
+    cols = st.columns([0.15, 0.15, 0.15, 0.3])
     with cols[0]:
         st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, COLLECTION_NAME))
     with cols[1]:
-        st.button("➕Add Input", on_click=add_input)
+        st.button("➕ Add Input", on_click=add_input)
     with cols[2]:
+        st.button("Clear Inputs", on_click=clear_input, icon=":material/clear_all:")
+    with cols[3]:
         st.button("Check Server", on_click=check_server, args=(client, COLLECTION_NAME), icon=":material/database:")
 
-st.subheader("Search Results") # Dummy results for demonstration
+# ######################
+# # SUBMISSION SECTION #
+# ######################
+st.subheader("Submission")
+submission_container = st.container(
+    border=True,
+    key="submission_scroll",
+    height="content",
+)
+with submission_container:
+    st.text_input(
+        label='File name',
+        key='file_name',
+        width=300,
+    )
+    st.text_area(
+        label="Answer",
+        height=150,
+        key="file_content",
+    )
+submission_widget_container = st.container(height='content', key='submission_widget')
+with submission_widget_container:
+    cols = st.columns([0.15, 0.15, 0.5])
+    with cols[0]:
+        st.button("Submit", on_click=submit, icon=":material/assignment:")
+    with cols[1]:
+        st.button("Clear Submission", on_click=clear_submission, icon=":material/clear_all:")
+
+##################
+# RESULT SECTION #
+##################
+st.subheader("Search Results")
 result_widget_container = st.container(height='content', border=True, key='result_widget')
 with result_widget_container:
     cols = st.columns([4, 1])
@@ -80,7 +114,7 @@ with result_widget_container:
     with cols[1]:
         st.toggle("Sort by video", key="sort_by_video")
 
-result_container = st.container(height=430, border=False, key='results_scroll')
+result_container = st.container(height=300, border=False, key='result_scroll')
 with result_container:
     if not st.session_state.sort_by_video:
         cols = st.columns(num_of_cols)
