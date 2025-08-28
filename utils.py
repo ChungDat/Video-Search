@@ -49,8 +49,11 @@ def get_keyframe_start_time(folder: str, video: str, frame_index: int = 0) -> fl
         float: The start time of the keyframe in seconds."""
     
     df = pd.read_csv(os.path.join(folder, video + ".csv"))
-    time = df.iloc[frame_index]["pts_time"]
-    return float(time)
+    try:
+        time = df.iloc[frame_index - 1]["pts_time"] # Offset by -1 because the first line of the csv is the header
+        return float(time)
+    except IndexError:
+        print(f"Frame index {frame_index} out of range for video {video}. Returning 0.0.")
 
 def get_keyframe_url(folder: str, video: str, metadata: dict, frame_index: int = 0) -> str:
     """
