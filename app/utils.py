@@ -2,7 +2,6 @@ from __future__ import annotations # for type hint
 import pandas as pd
 import streamlit as st
 import os
-import csv
 import json
 
 ##########################
@@ -12,10 +11,10 @@ def get_video_pack_files(folder: str, video_pack: str) -> list[str]:
     """
     Get all files in the folder that start with the video pack name.
     Args:
-        folder (str): The folder to search in.
-        video_pack (str): The video pack name to filter files by.
+        folder (str): Folder to search in.
+        video_pack (str): Video pack name to filter files by.
     Returns:
-        list[str]: A list of file names that start with the video pack name."""
+        list[str]: A list of file names that starts with video_pack."""
     
     if not os.path.exists(folder):
         return []
@@ -30,13 +29,13 @@ def get_video_metadata(folder: str, video: str, selected_keys: list[str]) -> dic
     """
     Get metadata from a JSON file.
     Args:
-        folder (str): The folder where the JSON files are located.
-        video (str): The name of the video.
-        selected_keys (list[str]): The keys to extract from the metadata.
-        Available keys: ['author', 'channel_id', 'channel_url', 'description', 'keywords', 
-        'length', 'publish_date', 'thumbnail_url', 'title', 'watch_url']
+        folder (str): Folder where JSON files are located.
+        video (str): Name of video.
+        selected_keys (list[str]): Keys to extract from the metadata.
+            Available keys: ['author', 'channel_id', 'channel_url', 'description', 'keywords', 
+            'length', 'publish_date', 'thumbnail_url', 'title', 'watch_url']
     Returns:
-        dict: The metadata as a dictionary."""
+        dict: Metadata as a dictionary."""
     
     metadata_path = os.path.join(folder, video + ".json")
     if not os.path.exists(metadata_path):
@@ -44,90 +43,106 @@ def get_video_metadata(folder: str, video: str, selected_keys: list[str]) -> dic
     metadata = json.load(open(metadata_path, "r", encoding="utf-8"))
     return {key: metadata[key] for key in selected_keys if key in metadata}
 
-def get_keyframe_start_time(folder: str, video: str, frame_index: int = 0) -> float:
-    """
-    Get the start time of a specific frame from the metadata.
-    Args:
-        folder (str): The folder where the map-keyframes files are stored.
-        video (str): The name of the video.
-        frame_index (int): The index of the keyframe.
-    Returns:
-        float: The start time of the keyframe in seconds."""
-    
-    df = pd.read_csv(os.path.join(folder, video + ".csv"))
-    try:
-        time = df.iloc[frame_index - 1]["pts_time"] # Offset by -1 because the first line of the csv is the header
-        return float(time)
-    except IndexError:
-        print(f"Frame index {frame_index} out of range for video {video}. Returning 0.0.")
-
-def get_keyframe_url(folder: str, video: str, metadata: dict, frame_index: int = 0) -> str:
-    """
-    Get the URL to youtube of a specific frame from the metadata.
-    Args:
-        folder (str): The folder where the map-keyframes files are stored.
-        video (str): The name of the video.
-        metadata (dict): The metadata dictionary containing video information.
-        frame_index (int): The index of the keyframe. If 0, the url will point to the start of the video.
-    Returns:
-        str: The URL of the keyframe image."""
-    
-    time = get_keyframe_start_time(folder, video, frame_index)
-    url = metadata["watch_url"] + "&t=" + str(int(time))
-    return url
-
-def get_frame_url(video: str, metatdata: dict, fps: float, frame_index: int = 0) -> str:
-    """
-    Get the URL to youtube of a specific frame from the metadata.
-    Args:
-        video (str): The name of the video.
-        metatdata (dict): The metadata dictionary containing video information.
-        fps (float): The frames per second of the video.
-        frame_index (int): The index of the keyframe.
-    Returns:
-        str: The URL of the keyframe image."""
-    
-    time = frame_index / fps
-    url = metatdata["watch_url"] + "&t=" + str(int(time))
-    return url
-
 def get_video_fps(file: str, video: str) -> float:
     """
     Get the frames per second (FPS) of a video from a .json file.
     Args:
-        file (str): The path to the .json file containing videos information.
-        video (str): The name of the video.
+        file (str): Path to the .json file containing videos fps.
+        video (str): Name of video.
     Returns:
-        float: The frames per second of the video."""
+        float: Frames per second of video."""
     
     if not os.path.exists(file):
         return 0.0
-    fps = json.load(file)
-    if video not in fps.keys():
+    fps_data = json.load(open(file, 'r'))
+    if video not in fps_data.keys():
         return 0.0
-    return float(fps[video])
+    return float(fps_data[video])
 
-def get_keyframe_image_path(folder: str, video: str, frame_index: int) -> str:
+def get_keyframe_data(folder: str, video: str) -> pd.DataFrame:
     """
-    Get the path to the keyframe image.
+    Get timestamp, fps, frame_index of each keyframe in video.
+
     Args:
-        folder (str): The folder where the keyframes are stored.
-        video (str): The name of the video.
-        frame_index (int): The index of the frame.
+        folder (str): Folder where map-keyframes files are stored.
+        video (str): Name of video.
     Returns:
-        str: The path to the keyframe image."""
+        pd.DataFrame: A DataFrame containing timestamp, fps, frame_index of each keyframe in video.
+    """
+    df = pd.read_csv(os.path.join(folder, video + ".csv"))
+    return df
+
+def get_keyframe_image_path(folder: str, video: str, frame_n: int) -> str:
+    """
+    Get path to keyframe.
+
+    Args:
+        folder (str): Folder where keyframes are stored.
+        video (str): Name of video.
+        frame_n (int): The n-th keyframe.
+    Returns:
+        str: Path to keyframe.
+    """
     
     if frame_index < 10:
-        frame_index = "00" + str(frame_index)
+        frame_index = "00" + str(frame_n)
     elif frame_index < 100:
-        frame_index = "0" + str(frame_index)
+        frame_index = "0" + str(frame_n)
     else:
-        frame_index = str(frame_index)
+        frame_index = str(frame_n)
 
-    path = os.path.join(folder, video, frame_index + ".jpg")
+    path = os.path.join(folder, video, frame_n + ".jpg")
     if not os.path.exists(path):
         return ""
     return path
+
+def get_keyframe_index(folder: str, video: str, frame_n: int) -> int:
+    """
+    Get the actual frame index of n-th keyframe.
+
+    Args:
+        folder (str): Folder where map-keyframes files are stored.
+        video (str): Name of video.
+        frame_n (int): N-th keyframe of video.
+    Returns:
+        int: The actual frame index of n-th keyframe.
+    """
+    df = pd.read_csv(os.path.join(folder, video + ".csv"))
+    try:
+        frame_index = df.iloc[frame_n - 1]["frame_idx"] # Offset by -1 because the first line of the csv is the header
+        return int(frame_index)
+    except IndexError:
+        print(f"{frame_n} keyframe does not exists in {video}.csv. Returning 0.")
+
+def get_frame_start_time(file: str, video: str, frame_index: float) -> float:
+    """
+    Get timestamp of frame in video.
+
+    Agrs:
+        file (str): Path to the .json file containing videos fps.
+        video (str): Name of video.
+        frame_index (int): Frame index in video.
+    Returns:
+        float: Timestamp of frame.
+    """
+    fps = get_video_fps(file, video)
+    return frame_index / fps
+        
+def get_frame_url(file: str, video: str, metatdata: dict, frame_index: int = 0) -> str:
+    """
+    Get the URL to youtube of a specific frame from metadata.
+    Args:
+        file (str): Path to the .json file containing videos fps.
+        video (str): Name of video.
+        metatdata (dict): Metadata dictionary containing video information.
+        frame_index (int): Index of the frame
+    Returns:
+        str: URL that starts video at frame.
+    """
+    
+    time = get_frame_start_time(file, video, frame_index)
+    url = metatdata["watch_url"] + "&t=" + str(int(time))
+    return url
 
 #######################
 # STREAMLIT FUNCTIONS #
@@ -174,20 +189,11 @@ def update_submission_answer(i) -> None:
     st.session_state.submissions[i]["answer"] = st.session_state[f"answer_{st.session_state.submissions[i]['id']}"]
 
 def submit():
-    # lines = [line.strip() for line in st.session_state.file_content.splitlines() if line.strip()]
-    # rows = [line.split(",") for line in lines]
-    # rows = [[col.strip() for col in row] for row in rows]
-
-    # df = pd.DataFrame(rows, columns=["Video", "Frame Index"])
-
-    # # Save to disk
-    # df.to_csv(st.session_state.file_name + '.csv', index=False)
-
-    # st.success(f"Saved CSV to {st.session_state.file_name + '.csv'}")
-    # st.dataframe(df)
-
     if not os.path.exists('submission'):
         os.makedirs('submission')
+    if st.session_state.file_name == "" or st.session_state.file_content == "":
+        st.warning("Nothing to submit")
+        return
 
     with open(os.path.join('submission', st.session_state.file_name + ".csv"), "w", encoding="utf-8") as f:
         for line in st.session_state.file_content.splitlines():
@@ -293,12 +299,44 @@ def check_server(client: QdrantClient, collection_name: str) -> None:
         st.error(f"Error connecting to server or collection does not exist: {e}")
 
 @st.dialog("Image Details", width='large')
-def show_image_details(info, video, image, start_time=0) -> None:
+def show_image_details(info: str, video: str, image: str, file: str, video_name: str, start_time: float = 0) -> None:
+    st.write("""<style>
+    .stDialog *[role="dialog"] {
+        width: 75%;
+    }
+    </style>""",
+    unsafe_allow_html=True,
+    )
     detail_container = st.container(key='detail', border=False)
+    st.session_state.fps = get_video_fps(file, video_name)
     with detail_container:
-        cols = st.columns([0.5, 0.5])
+        cols = st.columns([0.3, 0.3])
         with cols[0]:
             st.video(video, start_time=start_time - 2) # start 2 seconds earlier for delay
+            calculator_container = st.container(key='calculator')
+            with calculator_container:
+                sub_cols = st.columns([1, 1, 1, 2])
+                with sub_cols[0]:
+                    st.number_input(
+                        label="Hour",
+                        key="hour",
+                        step=0.1,
+                        )
+                with sub_cols[1]:
+                    st.number_input(
+                        label="Minute", 
+                        key="minute",
+                        step=0.1,
+                        )
+                with sub_cols[2]:
+                    st.number_input(
+                        label="Second",
+                        key="second",
+                        step=0.1,
+                        )
+                with sub_cols[3]:
+                    st.write(f"FPS: {st.session_state.fps}")
+                    st.write(f"Frame Index {int((st.session_state.hour * 3600 + st.session_state.minute * 60 + st.session_state.second) * st.session_state.fps)}")
         with cols[1]:
             st.write(info)
             st.image(image, use_container_width=True)

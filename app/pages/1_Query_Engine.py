@@ -3,17 +3,30 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from PATH import KEYFRAMES_PATH, METADATA_PATH, MAP_KEYFRAMES_PATH
+from PATH import KEYFRAMES_PATH, METADATA_PATH, MAP_KEYFRAMES_PATH, FPS_PATH
 from utils import *
 from state import init_session_state
 
 st.set_page_config(page_title="Query Engine", layout='wide')
 st.sidebar.header("Query Engine")
 
-COLLECTION_NAME = "my_collection"
 model = load_model()
 client = load_client()
 init_session_state()
+
+collection_container = st.container(key="collection_widget",)
+with collection_container:
+    cols = st.columns([0.15, 0.15, 0.5])
+    with cols[0]:
+        st.selectbox(
+            label="Select Database Collection",
+            options=["my_collection", "my_frame_collection"],
+            key="collection_name",
+            index=0,
+            width='stretch',
+        )
+    with cols[1]:
+        st.button("Check Server", on_click=check_server, args=(client, st.session_state.collection_name), icon=":material/database:")
 
 st.selectbox(
     label="Select Query Mode",
@@ -64,15 +77,14 @@ elif st.session_state.query_mode == "Image Query":
 
 query_widget_container = st.container(height='content', key='query_widget')
 with query_widget_container:
-    cols = st.columns([0.15, 0.15, 0.15, 0.3])
+    cols = st.columns([0.15, 0.15, 0.15])
     with cols[0]:
-        st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, COLLECTION_NAME))
+        st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, st.session_state.collection_name))
     with cols[1]:
         st.button("➕ Add Input", on_click=add_input)
     with cols[2]:
         st.button("Clear Inputs", on_click=clear_input, icon=":material/clear_all:")
-    with cols[3]:
-        st.button("Check Server", on_click=check_server, args=(client, COLLECTION_NAME), icon=":material/database:")
+        
 
 # ######################
 # # SUBMISSION SECTION #
@@ -114,37 +126,39 @@ with result_widget_container:
     with cols[1]:
         st.toggle("Sort by video", key="sort_by_video")
 
-result_container = st.container(height=300, border=False, key='result_scroll')
+result_container = st.container(height=500, border=False, key='result_scroll')
 with result_container:
     if not st.session_state.sort_by_video:
         cols = st.columns(num_of_cols)
         for i, hit in enumerate(st.session_state.results):
-            origin = hit.payload.get("origin")
-            keyframe_id = hit.payload.get("keyframe_id")
+            origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
+            frame_index = hit.payload.get("frame_index")
             metadata = get_video_metadata(METADATA_PATH, origin, ["author", "channel_url", "publish_date", "title", "watch_url"])
-            start_time = get_keyframe_start_time(MAP_KEYFRAMES_PATH, origin, keyframe_id)
-            url = get_keyframe_url(MAP_KEYFRAMES_PATH, origin, metadata)
-            if keyframe_id < 10:
-                keyframe_id = f"00{keyframe_id}"
-            elif keyframe_id < 100:
-                keyframe_id = f"0{keyframe_id}"
+            start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
+            url = get_frame_url(FPS_PATH, origin, metadata)
+            if frame_index < 10:
+                frame_index = f"00{frame_index}"
+            elif frame_index < 100:
+                frame_index = f"0{frame_index}"
             else:
-                keyframe_id = str(keyframe_id)
-            # frame = hit.payload.get("frame")
-            image_path = os.path.join(KEYFRAMES_PATH, origin, keyframe_id + ".jpg")
+                frame_index = str(frame_index)
+            frame = hit.payload.get("frame")
+            image_path = os.path.join(KEYFRAMES_PATH, origin, frame)
 
             with cols[i % num_of_cols]:
                 st.image(image_path)
                 if st.button("Details", key=f"image_{i}", width='stretch'):
                     show_image_details(
-                        info=f"From video: {origin}\nKeyframe ID: {keyframe_id}",
+                        info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
                         video=url,
                         image=image_path,
-                        start_time=start_time
+                        start_time=start_time,
+                        file=FPS_PATH,
+                        video_name=origin,
                     )
 
     else:
-        for video in st.session_state.video_list:
+        for i, video in enumerate(st.session_state.video_list):
             video_hits = []
             for hit in st.session_state.results_sorted:
                 if not video_hits and hit.payload.get("origin") == video:
@@ -154,32 +168,34 @@ with result_container:
                         video_hits.append(hit)
                     else:
                         break
-            st.markdown(f"### {video}")
+            st.markdown(f"### {i + 1}. {video}")
             cols = st.columns(num_of_cols)
             for i, hit in enumerate(video_hits):
-                origin = hit.payload.get("origin")
+                origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
                 if origin != video:
                     continue
-                keyframe_id = hit.payload.get("keyframe_id")
+                frame_index = hit.payload.get("frame_index")
                 metadata = get_video_metadata(METADATA_PATH, origin, ["author", "channel_url", "publish_date", "title", "watch_url"])
-                start_time = get_keyframe_start_time(MAP_KEYFRAMES_PATH, origin, keyframe_id)
-                url = get_keyframe_url(MAP_KEYFRAMES_PATH, origin, metadata)
-                if keyframe_id < 10:
-                    keyframe_id = f"00{keyframe_id}"
-                elif keyframe_id < 100:
-                    keyframe_id = f"0{keyframe_id}"
+                start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
+                url = get_frame_url(FPS_PATH, origin, metadata)
+                if frame_index < 10:
+                    frame_index = f"00{frame_index}"
+                elif frame_index < 100:
+                    frame_index = f"0{frame_index}"
                 else:
-                    keyframe_id = str(keyframe_id)
-                # frame = hit.payload.get("frame")
-                image_path = os.path.join(KEYFRAMES_PATH, origin, keyframe_id + ".jpg")
+                    frame_index = str(frame_index)
+                frame = hit.payload.get("frame")
+                image_path = os.path.join(KEYFRAMES_PATH, origin, frame)
 
                 with cols[i % num_of_cols]:
                     st.image(image_path)
                     if st.button("Details", key=f"image_{video}_{i}", width='stretch'):
                         show_image_details(
-                            info=f"From video: {origin}\nKeyframe ID: {keyframe_id}",
-                            video=url,
-                            image=image_path,
-                            start_time=start_time
-                        )
+                        info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
+                        video=url,
+                        image=image_path,
+                        start_time=start_time,
+                        file=FPS_PATH,
+                        video_name=origin,
+                    )
             st.write("---")
