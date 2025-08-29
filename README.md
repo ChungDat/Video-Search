@@ -85,6 +85,8 @@ Video Search
 |-- README.md
 |-- qdrant.ipynb
 |-- requirements.txt
+|-- theme.txt
+|-- video_fps.json
 ```
 
 ---
