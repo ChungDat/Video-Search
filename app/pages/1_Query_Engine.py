@@ -40,7 +40,7 @@ if st.session_state.query_mode == "Text Query":
     input_container = st.container(height=150, border=True, key='query_scroll')
     with input_container:
         for i, inp in enumerate(st.session_state.inputs):
-            cols = st.columns([0.6, 0.2, 0.1])
+            cols = st.columns([0.6, 0.1])
             with cols[0]:
                 st.session_state.inputs[i]["query"] = st.text_area(
                     f"Query",
@@ -49,15 +49,15 @@ if st.session_state.query_mode == "Text Query":
                     on_change=update_input_query,
                     args=(i,),
                 )
+            # with cols[1]:
+            #     st.session_state.inputs[i]["tags"] = st.multiselect(
+            #         label="Tag",
+            #         options=st.session_state.tags,
+            #         key=f"tag_{inp['id']}",
+            #         on_change=update_input_tags,
+            #         args=(i,),
+            #     )
             with cols[1]:
-                st.session_state.inputs[i]["tags"] = st.multiselect(
-                    label="Tag",
-                    options=st.session_state.tags,
-                    key=f"tag_{inp['id']}",
-                    on_change=update_input_tags,
-                    args=(i,),
-                )
-            with cols[2]:
                 if len(st.session_state.inputs) > 1:
                     st.button(
                         label="🗑️", 
@@ -77,14 +77,22 @@ elif st.session_state.query_mode == "Image Query":
 
 query_widget_container = st.container(height='content', key='query_widget')
 with query_widget_container:
-    cols = st.columns([0.15, 0.15, 0.15])
+    cols = st.columns([0.15, 0.15, 0.5])
     with cols[0]:
-        st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, st.session_state.collection_name))
-    with cols[1]:
         st.button("➕ Add Input", on_click=add_input)
-    with cols[2]:
+    with cols[1]:
         st.button("Clear Inputs", on_click=clear_input, icon=":material/clear_all:")
-        
+
+st.subheader("Filter")
+filter_container = st.container(key="filter_scroll")
+with filter_container:
+    cols = st.columns([0.2, 0.2, 0.5])
+    with cols[0]:
+        st.multiselect("Video", options=["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30"], key="video")
+    with cols[1]:
+        st.multiselect("Tags", options=["fish", "pork", "beef"], key="tags")
+
+st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, st.session_state.collection_name))
 
 # ######################
 # # SUBMISSION SECTION #
@@ -156,15 +164,15 @@ with result_container:
                         file=FPS_PATH,
                         video_name=origin,
                     )
-
     else:
         for i, video in enumerate(st.session_state.video_list):
             video_hits = []
             for hit in st.session_state.results_sorted:
-                if not video_hits and hit.payload.get("origin") == video:
+                origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
+                if not video_hits and origin == video:
                     video_hits.append(hit)
                 elif video_hits:
-                    if hit.payload.get("origin") == video:
+                    if hit.payload.get("origin") + '_' + hit.payload.get("video") == video:
                         video_hits.append(hit)
                     else:
                         break

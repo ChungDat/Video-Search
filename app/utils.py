@@ -153,42 +153,16 @@ def add_input() -> None:
     st.session_state.inputs.append({
         "id": st.session_state.next_input_id,
         "query": "",
-        "tags": [],
-    })
-
-def add_submission() -> None:
-    st.session_state.next_submission_id += 1
-    st.session_state.submissions.append({
-        "id": st.session_state.next_submission_id,
-        "video": "",
-        "frame_index": 0,
-        "answer": "",
     })
 
 def remove_input(id) -> None:
     if len(st.session_state.inputs) > 1:
         st.session_state.inputs = [inp for inp in st.session_state.inputs if inp["id"] != id]
 
-def remove_submission(id) -> None:
-    if len(st.session_state.submissions) > 1:
-        st.session_state.submissions = [sub for sub in st.session_state.submissions if sub["id"] != id]
-
 def update_input_query(i) -> None:
     st.session_state.inputs[i]["query"] = st.session_state[f"query_{st.session_state.inputs[i]['id']}"]
 
-def update_submission_video(i) -> None:
-    st.session_state.submissions[i]["video"] = st.session_state[f"video_{st.session_state.submissions[i]['id']}"]
-
-def update_input_tags(i) -> None:
-    st.session_state.inputs[i]["tags"] = st.session_state[f"tag_{st.session_state.inputs[i]['id']}"]
-
-def update_submission_frame_index(i) -> None:
-    st.session_state.submissions[i]["frame_index"] = st.session_state[f"frame_index_{st.session_state.submissions[i]['id']}"]
-
-def update_submission_answer(i) -> None:
-    st.session_state.submissions[i]["answer"] = st.session_state[f"answer_{st.session_state.submissions[i]['id']}"]
-
-def submit():
+def submit(file_name: str, file_content: str) -> None:
     if not os.path.exists('submission'):
         os.makedirs('submission')
     if st.session_state.file_name == "" or st.session_state.file_content == "":
@@ -201,12 +175,11 @@ def submit():
                 f.write(line.strip() + "\n")
     st.success("Success write file to " + os.path.join('submission', st.session_state.file_name + ".csv"))
 
-def clear_input():
+def clear_input() -> None:
     st.session_state.next_input_id += 1
     st.session_state.inputs = [{
             "id": st.session_state.next_input_id,
             "query": "",
-            "tags": [],
         }]
 
 def clear_submission():
@@ -214,19 +187,37 @@ def clear_submission():
     st.session_state.file_content = ""
 
 @st.cache_data
-def create_filters(tags) -> models.Filter | None:
+def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
+    """
+    Create filter to search for videos with specific tags.
+
+    Agrs:
+        videos (list[str]): A list of selected videos.
+        tags (list[str]): A list of selected tags.
+    Returns:
+        models.Filter | None: A filter if videos or tags is provided. Returns None otherwise.
+    """
     from qdrant_client.http import models
-    if not tags:
+    if not tags and not videos:
         return None
-    return models.Filter(
-        must=[
+    conditions = []
+    conditions.append(
+        models.FieldCondition(
+            key="origin",
+            match=models.MatchAny(any=videos)
+        )
+    )
+    for tag in tags:
+        conditions.append(
             models.FieldCondition(
                 key="tags",
                 match=models.MatchValue(value=tag)
             )
-            for tag in tags
-        ]
+        )
+    final_filter = models.Filter(
+        must=conditions,
     )
+    return final_filter
 
 def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, collection_name: str) -> None:
     """Perform search based on the current inputs and update results in session state.
@@ -238,20 +229,16 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
     """
     if mode == 'Text Query':
         queries = []
-        tags = []
         for inp in st.session_state.inputs:
             if inp["query"]:
                 queries.append(inp["query"])
-            if inp["tags"]:
-                tags.extend(inp["tags"])
         if not queries:
             st.warning("Please enter at least one query.")
             return []
-        query_filter = create_filters(list(set(tags)))
-
         if len(queries) > 1:
             st.warning("Currently only single query is supported. Using the first query.")
             return
+        query_filter = create_filter(st.session_state.video, st.session_state.tags)
     
     elif mode == 'Image Query':
         if not st.session_state.image_upload:
@@ -280,14 +267,13 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
     st.session_state.video_list = []
     seen = set()
     for hit in st.session_state.results:
-        origin = hit.payload.get("origin")
+        origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
         if origin not in seen:
             st.session_state.video_list.append(origin)
             seen.add(origin)
-
     st.session_state.results_sorted = sorted(
         st.session_state.results,
-        key=lambda x: (st.session_state.video_list.index(x.payload.get("origin")), x.payload.get("keyframe_id"))
+        key=lambda x: (st.session_state.video_list.index(x.payload.get("origin") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
     )
 
 
