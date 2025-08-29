@@ -74,13 +74,17 @@ Video Search
 |   |   |...
 |   |-- L21_V002
 |   ...
+|-- app
+|   |-- pages
+|   |   |-- 1_Query_Engine.py
+|   |-- PATH.py
+|   |-- main_app.py
+|   |-- state.py
+|   |-- utils.py
 |-- LICENSE
-|-- qdrant.ipynb
 |-- README.md
+|-- qdrant.ipynb
 |-- requirements.txt
-|-- strlit.py
-|-- utils.py
-|-- PATH.py
 ```
 
 ---
@@ -89,9 +93,9 @@ Video Search
 
 1. Ensure the Qdrant Docker container is running.  
 2. Open `qdrant.ipynb` and run all cells up to **Enable Indexing**.  
-3. Activate the environment, cd to the directory and run:
+3. Activate the environment, cd to the working directory and run:
    ```bash
-   streamlit run strlit.py
+   streamlit run app/main_app.py
    ```
 
 ---
