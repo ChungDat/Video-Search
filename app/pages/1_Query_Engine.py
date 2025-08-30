@@ -87,9 +87,9 @@ with query_widget_container:
 # FILTER SECTION #
 ##################
 st.subheader("Filter")
-filter_container = st.container(key="filter_scroll")
+filter_container = st.container(key="filter_scroll", border=True)
 with filter_container:
-    cols = st.columns([0.2, 0.2, 0.5])
+    cols = st.columns([0.2, 0.2, 0.05, 0.2, 0.2])
     with cols[0]:
         st.multiselect("Video", options=["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30"], key="filter_video")
     with cols[1]:
@@ -97,6 +97,11 @@ with filter_container:
         for video in st.session_state.filter_video:
             filter_tags.extend(st.session_state.available_tags.get(video, []))
         st.multiselect("Tags", options=filter_tags, key="filter_tags")
+    with cols[3]:
+        st.write("L21, tin tức, 60 giây sáng  \nL22, tin tức, 60 giây chiều  \nL23, thể thao, đua xe đạp  \nL24, thể thao, lân sư rồng  \nL25, học tập, ôn thi thpt")
+    with cols[4]:
+        st.write("L26, ẩm thực, món ngon mỗi ngày  \nL27, du lịch văn hoá, VN đi là ghiền  \nL28, du lịch văn hoá, tản mạn Mê Kông  \nL29, du lịch văn hoá, đôi mắt Mê Kông  \nL30, đời sống, lan toả năng lượng tích cực")
+
 
 st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, st.session_state.collection_name))
 
@@ -110,11 +115,17 @@ submission_container = st.container(
     height="content",
 )
 with submission_container:
-    st.text_input(
-        label='File name',
-        key='file_name',
-        width=300,
-    )
+    cols = st.columns([0.3, 0.1, 0.6])
+    with cols[0]:
+        st.text_input(
+            label='File name',
+            key='file_name',
+            width=300,
+        )
+    with cols[1]:
+        st.write(" ")
+        st.write(" ")
+        st.write(".csv")
     st.text_area(
         label="Answer",
         height=150,
