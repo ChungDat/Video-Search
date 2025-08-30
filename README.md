@@ -81,8 +81,11 @@ Video Search
 |   |-- main_app.py
 |   |-- state.py
 |   |-- utils.py
+|-- L25_video_tags.json
+|-- L26_video_tags.json
 |-- LICENSE
 |-- README.md
+|-- all_tags.json
 |-- qdrant.ipynb
 |-- requirements.txt
 |-- theme.txt
