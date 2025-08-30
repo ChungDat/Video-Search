@@ -203,7 +203,7 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     conditions = []
     conditions.append(
         models.FieldCondition(
-            key="origin",
+            key="pack",
             match=models.MatchAny(any=videos)
         )
     )
@@ -238,7 +238,6 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         if len(queries) > 1:
             st.warning("Currently only single query is supported. Using the first query.")
             return
-        query_filter = create_filter(st.session_state.video, st.session_state.tags)
     
     elif mode == 'Image Query':
         if not st.session_state.image_upload:
@@ -247,8 +246,8 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         from PIL import Image
         image = Image.open(st.session_state.image_upload).convert("RGB")
         queries = [image]
-        query_filter = None
 
+    query_filter = create_filter(st.session_state.filter_video, st.session_state.filter_tags)
     query_vector = model.encode(queries[0]).tolist()
     if query_filter:
         st.session_state.results = client.search(
@@ -267,13 +266,13 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
     st.session_state.video_list = []
     seen = set()
     for hit in st.session_state.results:
-        origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
+        origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
         if origin not in seen:
             st.session_state.video_list.append(origin)
             seen.add(origin)
     st.session_state.results_sorted = sorted(
         st.session_state.results,
-        key=lambda x: (st.session_state.video_list.index(x.payload.get("origin") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
+        key=lambda x: (st.session_state.video_list.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
     )
 
 

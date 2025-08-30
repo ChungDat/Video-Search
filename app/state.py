@@ -1,4 +1,5 @@
 import streamlit as st
+import json
 
 def init_session_state():
     if "next_input_id" not in st.session_state:
@@ -27,3 +28,6 @@ def init_session_state():
     
     if "file_content" not in st.session_state:
         st.session_state.file_content = ""
+
+    if "available_tags" not in st.session_state:
+        st.session_state.available_tags = json.load(open("all_tags.json", "r", encoding="utf-8"))

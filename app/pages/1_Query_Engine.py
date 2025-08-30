@@ -83,20 +83,26 @@ with query_widget_container:
     with cols[1]:
         st.button("Clear Inputs", on_click=clear_input, icon=":material/clear_all:")
 
+##################
+# FILTER SECTION #
+##################
 st.subheader("Filter")
 filter_container = st.container(key="filter_scroll")
 with filter_container:
     cols = st.columns([0.2, 0.2, 0.5])
     with cols[0]:
-        st.multiselect("Video", options=["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30"], key="video")
+        st.multiselect("Video", options=["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30"], key="filter_video")
     with cols[1]:
-        st.multiselect("Tags", options=["fish", "pork", "beef"], key="tags")
+        filter_tags = []
+        for video in st.session_state.filter_video:
+            filter_tags.extend(st.session_state.available_tags.get(video, []))
+        st.multiselect("Tags", options=filter_tags, key="filter_tags")
 
 st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mode, model, client, st.session_state.collection_name))
 
-# ######################
-# # SUBMISSION SECTION #
-# ######################
+######################
+# SUBMISSION SECTION #
+######################
 st.subheader("Submission")
 submission_container = st.container(
     border=True,
@@ -118,7 +124,7 @@ submission_widget_container = st.container(height='content', key='submission_wid
 with submission_widget_container:
     cols = st.columns([0.15, 0.15, 0.5])
     with cols[0]:
-        st.button("Submit", on_click=submit, icon=":material/assignment:")
+        st.button("Submit", on_click=submit, icon=":material/assignment:", args=(st.session_state.file_name, st.session_state.file_content))
     with cols[1]:
         st.button("Clear Submission", on_click=clear_submission, icon=":material/clear_all:")
 
@@ -139,7 +145,7 @@ with result_container:
     if not st.session_state.sort_by_video:
         cols = st.columns(num_of_cols)
         for i, hit in enumerate(st.session_state.results):
-            origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
+            origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
             frame_index = hit.payload.get("frame_index")
             metadata = get_video_metadata(METADATA_PATH, origin, ["author", "channel_url", "publish_date", "title", "watch_url"])
             start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
@@ -168,18 +174,18 @@ with result_container:
         for i, video in enumerate(st.session_state.video_list):
             video_hits = []
             for hit in st.session_state.results_sorted:
-                origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
+                origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
                 if not video_hits and origin == video:
                     video_hits.append(hit)
                 elif video_hits:
-                    if hit.payload.get("origin") + '_' + hit.payload.get("video") == video:
+                    if hit.payload.get("pack") + '_' + hit.payload.get("video") == video:
                         video_hits.append(hit)
                     else:
                         break
             st.markdown(f"### {i + 1}. {video}")
             cols = st.columns(num_of_cols)
             for i, hit in enumerate(video_hits):
-                origin = hit.payload.get("origin") + '_' + hit.payload.get("video")
+                origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
                 if origin != video:
                     continue
                 frame_index = hit.payload.get("frame_index")
