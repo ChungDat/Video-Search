@@ -114,18 +114,18 @@ def get_keyframe_index(folder: str, video: str, frame_n: int) -> int:
     except IndexError:
         print(f"{frame_n} keyframe does not exists in {video}.csv. Returning 0.")
 
-def get_frame_start_time(file: str, video: str, frame_index: float) -> float:
+def get_frame_start_time(fps_file: str, video: str, frame_index: float) -> float:
     """
     Get timestamp of frame in video.
 
     Agrs:
-        file (str): Path to the .json file containing videos fps.
+        fps_file (str): Path to the .json file containing videos fps.
         video (str): Name of video.
         frame_index (int): Frame index in video.
     Returns:
         float: Timestamp of frame.
     """
-    fps = get_video_fps(file, video)
+    fps = get_video_fps(fps_file, video)
     return frame_index / fps
         
 def get_frame_url(file: str, video: str, metatdata: dict, frame_index: int = 0) -> str:
@@ -162,10 +162,10 @@ def remove_input(id) -> None:
 def update_input_query(i) -> None:
     st.session_state.inputs[i]["query"] = st.session_state[f"query_{st.session_state.inputs[i]['id']}"]
 
-def submit(file_name: str, file_content: str) -> None:
+def submit() -> None:
     if not os.path.exists('submission'):
         os.makedirs('submission')
-    if st.session_state.file_name == "" or st.session_state.file_content == "":
+    if not st.session_state.file_name or not st.session_state.file_content:
         st.warning("Nothing to submit")
         return
 
@@ -178,9 +178,9 @@ def submit(file_name: str, file_content: str) -> None:
 def clear_input() -> None:
     st.session_state.next_input_id += 1
     st.session_state.inputs = [{
-            "id": st.session_state.next_input_id,
-            "query": "",
-        }]
+        "id": st.session_state.next_input_id,
+        "query": "",
+    }]
 
 def clear_submission():
     st.session_state.file_name = ""
@@ -247,7 +247,7 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         image = Image.open(st.session_state.image_upload).convert("RGB")
         queries = [image]
 
-    query_filter = create_filter(st.session_state.filter_video, st.session_state.filter_tags)
+    query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
     query_vector = model.encode(queries[0]).tolist()
     if query_filter:
         st.session_state.results = client.search(
@@ -263,16 +263,18 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
             limit=200,
         )
 
-    st.session_state.video_list = []
+    st.session_state.origin_rank = []
     seen = set()
     for hit in st.session_state.results:
-        origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
+        pack = hit.payload.get("pack")
+        video = hit.payload.get("video")
+        origin = pack + '_' + video
         if origin not in seen:
-            st.session_state.video_list.append(origin)
+            st.session_state.origin_rank.append(origin)
             seen.add(origin)
     st.session_state.results_sorted = sorted(
         st.session_state.results,
-        key=lambda x: (st.session_state.video_list.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
+        key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
     )
 
 
@@ -283,8 +285,11 @@ def check_server(client: QdrantClient, collection_name: str) -> None:
     except Exception as e:
         st.error(f"Error connecting to server or collection does not exist: {e}")
 
-@st.dialog("Image Details", width='large')
-def show_image_details(info: str, video: str, image: str, file: str, video_name: str, start_time: float = 0) -> None:
+def extract_frames():
+    pass
+
+@st.dialog("Details", width='large')
+def show_details(info: str, data: str, frame: str, fps_file: str, video_name: str, start_time: float = 0) -> None:
     st.write("""<style>
     .stDialog *[role="dialog"] {
         width: 75%;
@@ -292,14 +297,14 @@ def show_image_details(info: str, video: str, image: str, file: str, video_name:
     </style>""",
     unsafe_allow_html=True,
     )
-    detail_container = st.container(key='detail', border=False)
-    st.session_state.fps = get_video_fps(file, video_name)
+    detail_container = st.container(key='detail_container', border=False)
+    st.session_state.fps = get_video_fps(fps_file, video_name)
     with detail_container:
         cols = st.columns([0.3, 0.3])
         with cols[0]:
-            st.video(video, start_time=start_time - 2) # start 2 seconds earlier for delay
-            calculator_container = st.container(key='calculator')
-            with calculator_container:
+            st.video(data, start_time=start_time)
+            frame_calculator_container = st.container(key='calculator_container')
+            with frame_calculator_container:
                 sub_cols = st.columns([1, 1, 1, 2])
                 with sub_cols[0]:
                     st.number_input(
@@ -323,8 +328,9 @@ def show_image_details(info: str, video: str, image: str, file: str, video_name:
                     st.write(f"FPS: {st.session_state.fps}")
                     st.write(f"Frame Index {int((st.session_state.hour * 3600 + st.session_state.minute * 60 + st.session_state.second) * st.session_state.fps)}")
         with cols[1]:
-            st.write(info)
-            st.image(image, use_container_width=True)
+            st.image(frame, use_container_width=True)
+            if info:
+                st.write(info)
 
 @st.cache_resource
 def load_model() -> SentenceTransformer:

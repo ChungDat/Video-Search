@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from PATH import KEYFRAMES_PATH, METADATA_PATH, MAP_KEYFRAMES_PATH, FPS_PATH
+from PATH import KEYFRAMES_PATH, METADATA_PATH, FPS_PATH, L28_PATH
 from utils import *
 from state import init_session_state
 
@@ -14,18 +14,17 @@ model = load_model()
 client = load_client()
 init_session_state()
 
-collection_container = st.container(key="collection_widget",)
+collection_container = st.container(key="collection_container",)
 with collection_container:
-    cols = st.columns([0.15, 0.15, 0.5])
+    cols = st.columns([0.2, 0.15, 0.5])
     with cols[0]:
         st.selectbox(
             label="Select Database Collection",
-            options=["my_collection", "my_frame_collection"],
+            options=st.session_state.collections,
             key="collection_name",
-            index=0,
-            width='stretch',
         )
     with cols[1]:
+        st.write("")
         st.button("Check Server", on_click=check_server, args=(client, st.session_state.collection_name), icon=":material/database:")
 
 st.selectbox(
@@ -37,7 +36,7 @@ st.selectbox(
 
 if st.session_state.query_mode == "Text Query":
     st.subheader("Text Query")
-    input_container = st.container(height=150, border=True, key='query_scroll')
+    input_container = st.container(height=150, border=True, key='input_container')
     with input_container:
         for i, inp in enumerate(st.session_state.inputs):
             cols = st.columns([0.6, 0.1])
@@ -49,14 +48,6 @@ if st.session_state.query_mode == "Text Query":
                     on_change=update_input_query,
                     args=(i,),
                 )
-            # with cols[1]:
-            #     st.session_state.inputs[i]["tags"] = st.multiselect(
-            #         label="Tag",
-            #         options=st.session_state.tags,
-            #         key=f"tag_{inp['id']}",
-            #         on_change=update_input_tags,
-            #         args=(i,),
-            #     )
             with cols[1]:
                 if len(st.session_state.inputs) > 1:
                     st.button(
@@ -75,7 +66,7 @@ elif st.session_state.query_mode == "Image Query":
         key="image_upload",
     )
 
-query_widget_container = st.container(height='content', key='query_widget')
+query_widget_container = st.container(height='content', key='query_widget_container')
 with query_widget_container:
     cols = st.columns([0.15, 0.15, 0.5])
     with cols[0]:
@@ -87,15 +78,15 @@ with query_widget_container:
 # FILTER SECTION #
 ##################
 st.subheader("Filter")
-filter_container = st.container(key="filter_scroll", border=True)
+filter_container = st.container(key="filter_container", border=True)
 with filter_container:
     cols = st.columns([0.2, 0.2, 0.05, 0.2, 0.2])
     with cols[0]:
-        st.multiselect("Video", options=["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30"], key="filter_video")
+        st.multiselect("Video", options=st.session_state.available_packs, key="filter_packs")
     with cols[1]:
         filter_tags = []
-        for video in st.session_state.filter_video:
-            filter_tags.extend(st.session_state.available_tags.get(video, []))
+        for pack in st.session_state.filter_packs:
+            filter_tags.extend(st.session_state.available_tags.get(pack, []))
         st.multiselect("Tags", options=filter_tags, key="filter_tags")
     with cols[3]:
         st.write("L21, tin tức, 60 giây sáng  \nL22, tin tức, 60 giây chiều  \nL23, thể thao, đua xe đạp  \nL24, thể thao, lân sư rồng  \nL25, học tập, ôn thi thpt")
@@ -111,8 +102,7 @@ st.button("🔍 Search", on_click=search_query, args=(st.session_state.query_mod
 st.subheader("Submission")
 submission_container = st.container(
     border=True,
-    key="submission_scroll",
-    height="content",
+    key="submission_container",
 )
 with submission_container:
     cols = st.columns([0.3, 0.1, 0.6])
@@ -123,19 +113,19 @@ with submission_container:
             width=300,
         )
     with cols[1]:
-        st.write(" ")
-        st.write(" ")
+        st.write("")
+        st.write("")
         st.write(".csv")
     st.text_area(
         label="Answer",
         height=150,
         key="file_content",
     )
-submission_widget_container = st.container(height='content', key='submission_widget')
+submission_widget_container = st.container(key='submission_widget_container')
 with submission_widget_container:
     cols = st.columns([0.15, 0.15, 0.5])
     with cols[0]:
-        st.button("Submit", on_click=submit, icon=":material/assignment:", args=(st.session_state.file_name, st.session_state.file_content))
+        st.button("Submit", on_click=submit, icon=":material/assignment:")
     with cols[1]:
         st.button("Clear Submission", on_click=clear_submission, icon=":material/clear_all:")
 
@@ -143,7 +133,7 @@ with submission_widget_container:
 # RESULT SECTION #
 ##################
 st.subheader("Search Results")
-result_widget_container = st.container(height='content', border=True, key='result_widget')
+result_widget_container = st.container(border=True, key='result_widget_container')
 with result_widget_container:
     cols = st.columns([4, 1])
     with cols[0]:
@@ -151,76 +141,106 @@ with result_widget_container:
     with cols[1]:
         st.toggle("Sort by video", key="sort_by_video")
 
-result_container = st.container(height=500, border=False, key='result_scroll')
+result_container = st.container(height=500, border=False, key='result_container')
 with result_container:
     if not st.session_state.sort_by_video:
         cols = st.columns(num_of_cols)
         for i, hit in enumerate(st.session_state.results):
-            origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
+            pack = hit.payload.get("pack")
+            video = hit.payload.get("video")
             frame_index = hit.payload.get("frame_index")
-            metadata = get_video_metadata(METADATA_PATH, origin, ["author", "channel_url", "publish_date", "title", "watch_url"])
+            frame = hit.payload.get("frame")
+            origin = pack + '_' + video
+            metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
             start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-            url = get_frame_url(FPS_PATH, origin, metadata)
             if frame_index < 10:
                 frame_index = f"00{frame_index}"
             elif frame_index < 100:
                 frame_index = f"0{frame_index}"
             else:
                 frame_index = str(frame_index)
-            frame = hit.payload.get("frame")
-            image_path = os.path.join(KEYFRAMES_PATH, origin, frame)
+            frame_path = os.path.join(KEYFRAMES_PATH, origin, frame)
+            if pack == "L28":
+                video_path = os.path.join(L28_PATH, origin + ".mp4")
+            else:
+                url = get_frame_url(FPS_PATH, origin, metadata)
 
             with cols[i % num_of_cols]:
-                st.image(image_path)
+                st.image(frame_path)
                 if st.button("Details", key=f"image_{i}", width='stretch'):
-                    show_image_details(
-                        info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
-                        video=url,
-                        image=image_path,
-                        start_time=start_time,
-                        file=FPS_PATH,
-                        video_name=origin,
-                    )
+                    if hit.payload.get("pack") == "L28":
+                        show_details(
+                            info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
+                            data=video_path,
+                            frame=frame_path,
+                            start_time=start_time,
+                            fps_file=FPS_PATH,
+                            video_name=origin,
+                        )
+                    else:
+                        show_details(
+                            info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
+                            data=url,
+                            frame=frame_path,
+                            start_time=start_time,
+                            fps_file=FPS_PATH,
+                            video_name=origin,
+                        )
     else:
-        for i, video in enumerate(st.session_state.video_list):
+        for i, candidate in enumerate(st.session_state.origin_rank):
             video_hits = []
             for hit in st.session_state.results_sorted:
-                origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
-                if not video_hits and origin == video:
+                pack = hit.payload.get("pack")
+                video = hit.payload.get("video")
+                origin = pack + '_' + video
+                if not video_hits and origin == candidate:
                     video_hits.append(hit)
                 elif video_hits:
-                    if hit.payload.get("pack") + '_' + hit.payload.get("video") == video:
+                    if origin == candidate:
                         video_hits.append(hit)
                     else:
                         break
-            st.markdown(f"### {i + 1}. {video}")
+            st.markdown(f"### {i + 1}. {candidate}")
             cols = st.columns(num_of_cols)
             for i, hit in enumerate(video_hits):
-                origin = hit.payload.get("pack") + '_' + hit.payload.get("video")
-                if origin != video:
-                    continue
+                pack = hit.payload.get("pack")
+                video = hit.payload.get("video")
+                frame = hit.payload.get("frame")
                 frame_index = hit.payload.get("frame_index")
-                metadata = get_video_metadata(METADATA_PATH, origin, ["author", "channel_url", "publish_date", "title", "watch_url"])
+                origin = pack + '_' + video
+                metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
                 start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-                url = get_frame_url(FPS_PATH, origin, metadata)
                 if frame_index < 10:
                     frame_index = f"00{frame_index}"
                 elif frame_index < 100:
                     frame_index = f"0{frame_index}"
                 else:
                     frame_index = str(frame_index)
-                frame = hit.payload.get("frame")
-                image_path = os.path.join(KEYFRAMES_PATH, origin, frame)
+                frame_path = os.path.join(KEYFRAMES_PATH, origin, frame)
+                if hit.payload.get("pack") == "L28":
+                    video_path = os.path.join(L28_PATH, origin + ".mp4")
+                else:
+                    url = get_frame_url(FPS_PATH, origin, metadata)
 
                 with cols[i % num_of_cols]:
-                    st.image(image_path)
-                    if st.button("Details", key=f"image_{video}_{i}", width='stretch'):
-                        show_image_details(
-                        info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
-                        video=url,
-                        image=image_path,
-                        start_time=start_time,
-                        file=FPS_PATH,
-                        video_name=origin,
-                    )
+                    st.image(frame_path)
+                    if st.button("Details", key=f"image_{candidate}_{i}", width='stretch'):
+                        if hit.payload.get("pack") == "L28":
+                            show_details(
+                            info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
+                            data=video_path,
+                            frame=frame_path,
+                            start_time=start_time,
+                            fps_file=FPS_PATH,
+                            video_name=origin,
+                        )
+                        else:
+                            show_details(
+                                info=f"Video: {origin}  \nFrame index: {frame_index}  \n Frame name: {frame}",
+                                data=url,
+                                frame=frame_path,
+                                start_time=start_time,
+                                fps_file=FPS_PATH,
+                                video_name=origin,
+                            )
             st.write("---")
