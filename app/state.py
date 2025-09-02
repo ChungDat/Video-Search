@@ -38,3 +38,9 @@ def init_session_state():
 
     if "available_frames_path" not in st.session_state:
         st.session_state.available_frames_path = {"my_collection": KEYFRAMES_PATH, "my_custom_collection": MY_KEYFRAMES_PATH}
+
+    if "frames" not in st.session_state:
+        st.session_state.frames = []
+
+    if "start_frame" not in st.session_state:
+        st.session_state.start_frame = 0

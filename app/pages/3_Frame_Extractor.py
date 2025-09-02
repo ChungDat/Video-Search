@@ -7,6 +7,7 @@ from PATH import KEYFRAMES_PATH, METADATA_PATH, FPS_PATH, L28_PATH
 from utils import *
 from state import init_session_state
 import cv2
+from cap_from_youtube import cap_from_youtube
 
 st.set_page_config(page_title="Frame Extrator", layout='wide')
 st.sidebar.header("Frame Extractor")
@@ -68,33 +69,39 @@ if st.button("Extract Frame", key="extract_frame"):
         origin = st.session_state.extract_pack + '_' + st.session_state.extract_video
         if st.session_state.extract_pack == "L28":
             video_data = os.path.join(L28_PATH, origin + ".mp4")
+            cap = cv2.VideoCapture(video_data)
         else:
             metadata = get_video_metadata(METADATA_PATH, origin, ["author", "channel_url", "publish_date", "title", "watch_url"])
             video_data = get_frame_url(FPS_PATH, origin, metadata)
-        cap = cv2.VideoCapture(video_data) # Doesn't work for youtube link currently
+            cap = cap_from_youtube(video_data)
         VID_HEIGHT = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         VID_WIDTH = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         VID_FPS = cap.get(cv2.CAP_PROP_FPS)
         VID_TOTAL_FRAMES = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
-        start_timestamp = (start_hour * 3600 + start_minute * 60 + start_second) * 1000
-        end_timestamp = (end_hour * 3600 + end_minute * 60 + end_second) * 1000
-        start_frame = start_timestamp // VID_FPS
-        end_frame = end_timestamp // VID_FPS
+        start_timestamp_in_s = (start_hour * 3600 + start_minute * 60 + start_second)
+        start_timestamp_in_ms = start_timestamp_in_s * 1000
+        end_timestamp_in_s = (end_hour * 3600 + end_minute * 60 + end_second)
+        end_timestamp_in_ms = end_timestamp_in_s * 1000
+        start_frame = start_timestamp_in_s * VID_FPS
+        st.session_state.start_frame = start_frame
+        end_frame = end_timestamp_in_s * VID_FPS
         current_frame = start_frame
 
-        if end_timestamp != 0 and end_timestamp < start_timestamp: # End timestamp is smaller than start timestamp
+        if end_timestamp_in_s != 0 and end_timestamp_in_s < start_timestamp_in_s: # End timestamp is smaller than start timestamp
             st.warning("Invalid end timestamp")
         elif start_frame >= VID_TOTAL_FRAMES:
             st.warning("Invalid start timestamp")
         else:
-            if end_timestamp == 0: # End timestamp is empty
-                end_timestamp = start_timestamp + 3 * 60 * 1000 # Extract frame for 3 minutes long
-                end_frame = end_timestamp // VID_FPS
+            if end_timestamp_in_s == 0: # End timestamp is empty
+                end_timestamp_in_s = start_timestamp_in_s + 3 * 60 # Extract frame for 3 minutes long
+                end_timestamp_in_ms = end_timestamp_in_s * 1000
+                end_frame = end_timestamp_in_s * VID_FPS
+                
             # End timestamp is bigger than start timestamp
-            cap.set(cv2.CAP_PROP_POS_MSEC, start_timestamp)
+            cap.set(cv2.CAP_PROP_POS_MSEC, start_timestamp_in_ms)
 
-            frames = []
+            st.session_state.frames = []
             count = 0
             while cap.isOpened():
                 ret, frame = cap.read()
@@ -103,12 +110,12 @@ if st.button("Extract Frame", key="extract_frame"):
 
                 frame = cv2.resize(frame, dsize=None, fx=1/3, fy=1/3, interpolation=cv2.INTER_LINEAR)
                 if (count % st.session_state.step == 0):
-                    frames.append(frame)
+                    st.session_state.frames.append(frame)
                 current_frame += 1
                 if current_frame == end_frame:
                     break
                 count += 1
             cap.release()
-            for i, frame in enumerate(frames):
-                with cols[i % 10]:
-                    st.image(frame, f"{start_frame + i * st.session_state.step + 1}", channels="BGR")
+for i, frame in enumerate(st.session_state.frames):
+    with cols[i % 10]:
+        st.image(frame, f"{st.session_state.start_frame + i * st.session_state.step + 1}", channels="BGR")
