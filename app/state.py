@@ -1,9 +1,13 @@
 import streamlit as st
 import json
+from PATH import KEYFRAMES_PATH, MY_KEYFRAMES_PATH
 
 def init_session_state():
     if "collections" not in st.session_state:
         st.session_state.collections = ["my_collection", "my_frame_collection"]
+
+    if "collection_name" not in st.session_state:
+        st.session_state.collection_name = st.session_state.collections[0]
 
     if "next_input_id" not in st.session_state:
         st.session_state.next_input_id = 0
@@ -31,3 +35,6 @@ def init_session_state():
     
     if "available_videos_per_pack" not in st.session_state:
         st.session_state.available_videos_per_pack = json.load(open("videos_per_pack.json", 'r'))
+
+    if "available_frames_path" not in st.session_state:
+        st.session_state.available_frames_path = {"my_collection": KEYFRAMES_PATH, "my_frame_collection": MY_KEYFRAMES_PATH}

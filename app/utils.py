@@ -186,6 +186,12 @@ def clear_submission():
     st.session_state.file_name = ""
     st.session_state.file_content = ""
 
+def store_value(key: str) -> None:
+    st.session_state[key] = st.session_state["_" + key]
+
+def load_value(key: str) -> None:
+    st.session_state["_" + key] = st.session_state[key]
+
 @st.cache_data
 def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     """

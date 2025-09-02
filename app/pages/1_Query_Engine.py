@@ -13,6 +13,7 @@ st.sidebar.header("Query Engine")
 model = load_model()
 client = load_client()
 init_session_state()
+load_value("collection_name")
 
 collection_container = st.container(key="collection_container",)
 with collection_container:
@@ -21,8 +22,11 @@ with collection_container:
         st.selectbox(
             label="Select Database Collection",
             options=st.session_state.collections,
-            key="collection_name",
+            key="_collection_name",
+            on_change=store_value,
+            args=("collection_name",),
         )
+
     with cols[1]:
         st.write("")
         st.button("Check Server", on_click=check_server, args=(client, st.session_state.collection_name), icon=":material/database:")
