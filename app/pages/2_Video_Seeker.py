@@ -60,7 +60,7 @@ if st.session_state.seek_pack:
             frame_dir = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin)
             files = [f for f in os.listdir(frame_dir)]
             first_file = min(files)
-            frame = os.path.join(KEYFRAMES_PATH, origin, first_file)
+            frame = os.path.join(frame_dir, first_file)
             if st.session_state.seek_pack == "L28":
                 video_data = os.path.join(L28_PATH, origin + ".mp4")
             else:

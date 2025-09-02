@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from PATH import KEYFRAMES_PATH, METADATA_PATH, FPS_PATH, L28_PATH
+from PATH import METADATA_PATH, FPS_PATH, L28_PATH
 from utils import *
 from state import init_session_state
 
@@ -163,7 +163,7 @@ with result_container:
                 frame_index = f"0{frame_index}"
             else:
                 frame_index = str(frame_index)
-            frame_path = os.path.join(KEYFRAMES_PATH, origin, frame)
+            frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
             if pack == "L28":
                 video_path = os.path.join(L28_PATH, origin + ".mp4")
             else:
@@ -220,7 +220,7 @@ with result_container:
                     frame_index = f"0{frame_index}"
                 else:
                     frame_index = str(frame_index)
-                frame_path = os.path.join(KEYFRAMES_PATH, origin, frame)
+                frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
                 if hit.payload.get("pack") == "L28":
                     video_path = os.path.join(L28_PATH, origin + ".mp4")
                 else:

@@ -4,7 +4,7 @@ from PATH import KEYFRAMES_PATH, MY_KEYFRAMES_PATH
 
 def init_session_state():
     if "collections" not in st.session_state:
-        st.session_state.collections = ["my_collection", "my_frame_collection"]
+        st.session_state.collections = ["my_collection", "my_custom_collection"]
 
     if "collection_name" not in st.session_state:
         st.session_state.collection_name = st.session_state.collections[0]
@@ -37,4 +37,4 @@ def init_session_state():
         st.session_state.available_videos_per_pack = json.load(open("videos_per_pack.json", 'r'))
 
     if "available_frames_path" not in st.session_state:
-        st.session_state.available_frames_path = {"my_collection": KEYFRAMES_PATH, "my_frame_collection": MY_KEYFRAMES_PATH}
+        st.session_state.available_frames_path = {"my_collection": KEYFRAMES_PATH, "my_custom_collection": MY_KEYFRAMES_PATH}
