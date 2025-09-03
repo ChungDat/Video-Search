@@ -18,6 +18,9 @@ def init_session_state():
             "query": "",
         }]
 
+    if "file_content" not in st.session_state:
+        st.session_state.file_content = ""
+
     if "results" not in st.session_state:
         st.session_state.results = []
 

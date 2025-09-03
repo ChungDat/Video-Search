@@ -3,6 +3,10 @@ import pandas as pd
 import streamlit as st
 import os
 import json
+import cv2
+from cap_from_youtube import cap_from_youtube
+import numpy as np
+import time
 
 ##########################
 # PROCESS VIDEO FUNCTION #
@@ -144,6 +148,81 @@ def get_frame_url(file: str, video: str, metatdata: dict, frame_index: int = 0) 
     url = metatdata["watch_url"] + "&t=" + str(int(time))
     return url
 
+def sample_frames(video_path: str, fromYoutube: bool, start_timestamp_in_s: int, end_timestamp_in_s: int, step: int, scale: float) -> tuple[list[np.ndarray], int]:
+    start_time = time.time()
+    if fromYoutube:
+        cap = cap_from_youtube(video_path)
+    else:
+        cap = cv2.VideoCapture(video_path)
+    end_time = time.time()
+    st.write(f"Open VideoCapture time: {end_time - start_time}")
+
+    VID_FPS = cap.get(cv2.CAP_PROP_FPS)
+    VID_FRAME_COUNT = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    start_frame = start_timestamp_in_s * VID_FPS
+    end_frame = end_timestamp_in_s * VID_FPS
+
+    frames = []
+    count = 0
+    current_frame = start_frame
+    start_time = time.time()
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    end_time = time.time()
+    st.write(f"Set frame position time: {end_time - start_time}")
+    st.write(f"Start frame: {start_frame} | Frame count: {VID_FRAME_COUNT}")
+    start_time = time.time()
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if (count % step == 0):
+            frame = cv2.resize(frame, dsize=None, fx=scale, fy=scale)
+            frames.append(frame)
+        count += 1
+        current_frame += 1
+        if current_frame > end_frame:
+            break
+    cap.release()
+    end_time = time.time()
+    st.write(f"Extract frames time: {end_time - start_time}")
+    return frames, VID_FPS
+
+def sample_frames_2(video_path: str, fromYoutube: bool, start_timestamp_in_s: int, end_timestamp_in_s: int, step: int, scale: float) -> tuple[list[np.ndarray], int]:
+    start_time = time.time()
+    if fromYoutube:
+        cap = cap_from_youtube(video_path)
+    else:
+        cap = cv2.VideoCapture(video_path)
+    end_time = time.time()
+    st.write(f"Open VideoCapture time: {end_time - start_time}")
+
+    VID_FPS = cap.get(cv2.CAP_PROP_FPS)
+    VID_FRAME_COUNT = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    start_frame = start_timestamp_in_s * VID_FPS
+    end_frame = end_timestamp_in_s * VID_FPS
+
+    frames = []
+    current_frame = 0
+    start_time = time.time()
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if (current_frame < start_frame):
+            current_frame += 1
+            continue
+        if current_frame > end_frame:
+            break
+        if (current_frame % step == 0):
+            frame = cv2.resize(frame, dsize=None, fx=scale, fy=scale)
+            frames.append(frame)
+        current_frame += 1
+    cap.release()
+    end_time = time.time()
+    st.write(f"Extract frames time: {end_time - start_time}")
+    return frames, VID_FPS
+
+
 #######################
 # STREAMLIT FUNCTIONS #
 #######################
@@ -182,6 +261,9 @@ def clear_input() -> None:
         "query": "",
     }]
 
+def add_answer(answer: str) -> None:
+    st.session_state.file_content += answer + "\n"
+    
 def clear_submission():
     st.session_state.file_name = ""
     st.session_state.file_content = ""
@@ -225,7 +307,7 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     )
     return final_filter
 
-def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, collection_name: str) -> None:
+def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
     """Perform search based on the current inputs and update results in session state.
     
     Args:
@@ -255,19 +337,13 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
 
     query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
     query_vector = model.encode(queries[0]).tolist()
-    if query_filter:
-        st.session_state.results = client.search(
-            collection_name=collection_name,
-            query_vector=query_vector,
-            limit=200,
-            query_filter=query_filter,
-        )
-    else:
-        st.session_state.results = client.search(
-            collection_name=collection_name,
-            query_vector=query_vector,
-            limit=200,
-        )
+
+    st.session_state.results = client.search(
+        collection_name=collection_name,
+        query_vector=query_vector,
+        limit=limit,
+        query_filter=query_filter,
+    )
 
     st.session_state.origin_rank = []
     seen = set()
@@ -291,18 +367,17 @@ def check_server(client: QdrantClient, collection_name: str) -> None:
     except Exception as e:
         st.error(f"Error connecting to server or collection does not exist: {e}")
 
-def extract_frames():
-    pass
-
-@st.dialog("Details", width='large')
-def show_details(info: str, data: str, frame: str, fps_file: str, video_name: str, start_time: float = 0) -> None:
-    st.write("""<style>
-    .stDialog *[role="dialog"] {
-        width: 75%;
-    }
-    </style>""",
-    unsafe_allow_html=True,
+@st.dialog("Details", width='large', on_dismiss="rerun")
+def show_details(origin: str, frame_index: int, frame: str, data: str, frame_path: str, fps_file: str, video_name: str, start_time: float = 0) -> None:
+    st.write(
+        """<style>
+        .stDialog *[role="dialog"] {
+            width: 75%;
+        }
+        </style>""",
+        unsafe_allow_html=True,
     )
+    info = f"Video: {origin}\tFrame index: {frame_index}\tFrame name: {frame}"
     detail_container = st.container(key='detail_container', border=False)
     st.session_state.fps = get_video_fps(fps_file, video_name)
     with detail_container:
@@ -315,28 +390,35 @@ def show_details(info: str, data: str, frame: str, fps_file: str, video_name: st
                 with sub_cols[0]:
                     st.number_input(
                         label="Hour",
-                        key="hour",
+                        key="calculator_hour",
                         step=0.1,
                         )
                 with sub_cols[1]:
                     st.number_input(
                         label="Minute", 
-                        key="minute",
+                        key="calculator_minute",
                         step=0.1,
                         )
                 with sub_cols[2]:
                     st.number_input(
                         label="Second",
-                        key="second",
+                        key="calculator_second",
                         step=0.1,
                         )
                 with sub_cols[3]:
                     st.write(f"FPS: {st.session_state.fps}")
-                    st.write(f"Frame Index {int((st.session_state.hour * 3600 + st.session_state.minute * 60 + st.session_state.second) * st.session_state.fps)}")
+                    calculator_index = int((st.session_state.calculator_hour * 3600 + st.session_state.calculator_minute * 60 + st.session_state.calculator_second) * st.session_state.fps)
+                    st.write(f"Frame Index {calculator_index}")
         with cols[1]:
-            st.image(frame, use_container_width=True)
+            st.image(frame_path, use_container_width=True)
             if info:
-                st.write(info)
+                st.text(info)
+            sub_cols = st.columns(2)
+            with sub_cols[0]:
+                st.button(label="Use Calculator Index", key="calculator_index_button", on_click=add_answer, args=((f"{origin}, {calculator_index}"),))
+
+            with sub_cols[1]:
+                st.button(label="Use Image Index", key="image_index_button", on_click=add_answer, args=((f"{origin}, {int(frame_index)}"),))
 
 @st.cache_resource
 def load_model() -> SentenceTransformer:

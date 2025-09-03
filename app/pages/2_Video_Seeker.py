@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from PATH import KEYFRAMES_PATH, METADATA_PATH, FPS_PATH, L28_PATH
+from PATH import METADATA_PATH, FPS_PATH, L28_PATH
 from utils import *
 from state import init_session_state
 
@@ -13,22 +13,42 @@ st.sidebar.header("Video Seeker")
 client = load_client()
 init_session_state()
 load_value("collection_name")
+load_value("file_content")
 
-collection_container = st.container(key="collection_container",)
-with collection_container:
-    cols = st.columns([0.2, 0.15, 0.5])
+######################
+# SUBMISSION SECTION #
+######################
+st.subheader("Submission")
+submission_container = st.container(
+    border=True,
+    key="submission_container",
+)
+with submission_container:
+    cols = st.columns([0.3, 0.1, 0.6])
     with cols[0]:
-        st.selectbox(
-            label="Select Database Collection",
-            options=st.session_state.collections,
-            key="_collection_name",
-            on_change=store_value,
-            args=("collection_name",),
+        st.text_input(
+            label='File name',
+            key='file_name',
+            width=300,
         )
-
     with cols[1]:
         st.write("")
-        st.button("Check Server", on_click=check_server, args=(client, st.session_state.collection_name), icon=":material/database:")
+        st.write("")
+        st.write(".csv")
+    st.text_area(
+        label="Answer",
+        height=150,
+        key="_file_content",
+        on_change=store_value,
+        args=("file_content",)
+    )
+submission_widget_container = st.container(key='submission_widget_container')
+with submission_widget_container:
+    cols = st.columns([0.15, 0.15, 0.5])
+    with cols[0]:
+        st.button("Submit", on_click=submit, icon=":material/assignment:")
+    with cols[1]:
+        st.button("Clear Submission", on_click=clear_submission, icon=":material/clear_all:")
 
 origin_container = st.container(key="origin_container")
 with origin_container:
@@ -67,4 +87,10 @@ if st.session_state.seek_pack:
                 metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
                 video_data = get_frame_url(FPS_PATH, origin, metadata)
             if st.button(label=origin, key=f"video_{i}", width='content'): 
-                show_details("", video_data, frame, FPS_PATH, origin)
+                show_details(origin=origin,
+                             frame_index=0,
+                             frame=first_file,
+                             data=video_data,
+                             frame_path=frame,
+                             fps_file=FPS_PATH,
+                             video_name=origin)
