@@ -47,3 +47,6 @@ def init_session_state():
 
     if "start_frame" not in st.session_state:
         st.session_state.start_frame = 0
+
+    if "log" not in st.session_state:
+        st.session_state.log = []

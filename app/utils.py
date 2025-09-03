@@ -326,6 +326,7 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         if len(queries) > 1:
             st.warning("Currently only single query is supported. Using the first query.")
             return
+        log_query = queries
     
     elif mode == 'Image Query':
         if not st.session_state.image_upload:
@@ -334,6 +335,7 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         from PIL import Image
         image = Image.open(st.session_state.image_upload).convert("RGB")
         queries = [image]
+        log_query = []
 
     query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
     query_vector = model.encode(queries[0]).tolist()
@@ -358,7 +360,12 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         st.session_state.results,
         key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
     )
+    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags})
 
+def save_log():
+    with open("log.json", 'w') as f:
+        json.dump(st.session_state.log, f)
+        st.success("Successfully dump log to log.json")
 
 def check_server(client: QdrantClient, collection_name: str) -> None:
     try:

@@ -39,6 +39,8 @@ st.selectbox(
     width=150,
 )
 
+st.button("Save log", key="log_button", on_click=save_log)
+
 if st.session_state.query_mode == "Text Query":
     st.subheader("Text Query")
     input_container = st.container(height=150, border=True, key='input_container')
