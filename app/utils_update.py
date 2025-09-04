@@ -85,6 +85,24 @@ def get_keyframe_data(folder: str, video: str) -> pd.DataFrame:
     df = pd.read_csv(os.path.join(folder, video + ".csv"))
     return df
 
+def get_object_data(folder: str, video: str, frame_n: str) -> list:
+    """
+    Get object data from a JSON file.
+
+    Args:
+        folder (str): Folder where object files are stored.
+        video (str): Name of video.
+        frame_n (str): Name of the keyframe file (e.g., '001.jpg').
+    Returns:
+        list: A list of detected object entities.
+    """
+    json_path = os.path.join(folder, video, frame_n.replace('.jpg', '.json'))
+    if not os.path.exists(json_path):
+        return []
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+        return data.get("detection_class_entities", [])
+
 def get_keyframe_image_path(folder: str, video: str, frame_n: int) -> str:
     """
     Get path to keyframe.
@@ -97,12 +115,12 @@ def get_keyframe_image_path(folder: str, video: str, frame_n: int) -> str:
         str: Path to keyframe.
     """
     
-    if frame_index < 10:
-        frame_index = "00" + str(frame_n)
-    elif frame_index < 100:
-        frame_index = "0" + str(frame_n)
+    if frame_n < 10:
+        frame_n = "00" + str(frame_n)
+    elif frame_n < 100:
+        frame_n = "0" + str(frame_n)
     else:
-        frame_index = str(frame_n)
+        frame_n = str(frame_n)
 
     path = os.path.join(folder, video, frame_n + ".jpg")
     if not os.path.exists(path):
@@ -300,63 +318,92 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     if not tags and not videos:
         return None
     conditions = []
-    conditions.append(
-        models.FieldCondition(
-            key="pack",
-            match=models.MatchAny(any=videos)
-        )
-    )
-    for tag in tags:
+    if videos:
         conditions.append(
             models.FieldCondition(
-                key="tags",
-                match=models.MatchValue(value=tag)
+                key="pack",
+                match=models.MatchAny(any=videos)
             )
         )
+    if tags:
+        for tag in tags:
+            conditions.append(
+                models.FieldCondition(
+                    key="tags",
+                    match=models.MatchValue(value=tag)
+                )
+            )
+    if not conditions:
+        return None
     final_filter = models.Filter(
         must=conditions,
     )
     return final_filter
 
-def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
-    """Perform search based on the current inputs and update results in session state.
-    
-    Args:
-        mode (str): The mode of the query, either "Text Query" or "Image Query".
-    Returns:
-        None
-    """
-    if mode == 'Text Query':
-        queries = []
-        for inp in st.session_state.inputs:
-            if inp["query"]:
-                queries.append(inp["query"])
-        if not queries:
-            st.warning("Please enter at least one query.")
-            return []
-        if len(queries) > 1:
-            st.warning("Currently only single query is supported. Using the first query.")
-            return
-        log_query = queries
-    
-    elif mode == 'Image Query':
-        if not st.session_state.image_upload:
-            st.warning("Please upload an image.")
-            return []
-        from PIL import Image
-        image = Image.open(st.session_state.image_upload).convert("RGB")
-        queries = [image]
-        log_query = []
+def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
+    """Perform search based on the current inputs and update results in session state."""
+    text_queries = []
+    for inp in st.session_state.inputs:
+        if inp["query"]:
+            text_queries.append(inp["query"])
 
+    image_query = st.session_state.get("image_upload")
     query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
-    query_vector = model.encode(queries[0]).tolist()
 
-    st.session_state.results = client.search(
-        collection_name=collection_name,
-        query_vector=query_vector,
-        limit=limit,
-        query_filter=query_filter,
-    )
+    if not text_queries and not image_query and not query_filter and not st.session_state.filter_objects:
+        st.warning("Please enter a query or select a filter.")
+        return
+
+    query_vectors = []
+    log_query = []
+
+    if text_queries:
+        if len(text_queries) > 1:
+            st.warning("Currently only single text query is supported. Using the first query.")
+        text_vector = model.encode(text_queries[0]).tolist()
+        query_vectors.append(text_vector)
+        log_query.append(text_queries[0])
+
+    if image_query:
+        from PIL import Image
+        image = Image.open(image_query).convert("RGB")
+        image_vector = model.encode(image).tolist()
+        query_vectors.append(image_vector)
+
+    if query_vectors:
+        if len(query_vectors) > 1:
+            final_query_vector = np.mean(query_vectors, axis=0).tolist()
+        else:
+            final_query_vector = query_vectors[0]
+        
+        st.session_state.results, _ = client.search(
+            collection_name=collection_name,
+            query_vector=final_query_vector,
+            limit=limit,
+            query_filter=query_filter,
+        )
+    else: # No query, just filters
+        st.session_state.results, _ = client.scroll(
+            collection_name=collection_name,
+            scroll_filter=query_filter,
+            limit=limit
+        )
+
+    # Post-filter by objects
+    if st.session_state.filter_objects:
+        filtered_results = []
+        # If no other filters are applied, we need to get all points first
+        if not query_filter and not query_vectors:
+            all_results, _ = client.scroll(collection_name=collection_name, limit=10000) # A high limit to get all points
+            st.session_state.results = all_results
+
+        for hit in st.session_state.results:
+            video_name = hit.payload.get("pack") + '_' + hit.payload.get("video")
+            frame_file = hit.payload.get("frame")
+            object_data = get_object_data("samples/objects", video_name, frame_file)
+            if all(obj in object_data for obj in st.session_state.filter_objects):
+                filtered_results.append(hit)
+        st.session_state.results = filtered_results
 
     st.session_state.origin_rank = []
     seen = set()
@@ -371,7 +418,7 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         st.session_state.results,
         key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
     )
-    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags})
+    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
 
 def save_log():
     with open("log.json", 'w') as f:
@@ -419,28 +466,6 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
                 calculator_index = int(selected_seconds * st.session_state.fps)
                 st.write(f"Frame Index: {calculator_index}")
 
-            st.subheader("Copyable Text")
-            html_string = '''
-            <textarea id="my-text-area" rows="4" style="width:100%"></textarea>
-            <br>
-            <button id="copy-button">Copy</button>
-            <script>
-            document.getElementById("copy-button").onclick = function() {
-                const textArea = document.getElementById("my-text-area");
-                if (textArea) {
-                    navigator.clipboard.writeText(textArea.value).then(function() {
-                        const button = document.getElementById("copy-button");
-                        const originalText = button.innerText;
-                        button.innerText = "Copied!";
-                        setTimeout(() => { button.innerText = originalText; }, 2000);
-                    }, function() {
-                        alert("Failed to copy!");
-                    });
-                }
-            }
-            </script>
-            '''
-            st.markdown(html_string, unsafe_allow_html=True)
         with cols[1]:
             st.image(frame_path, use_container_width=True)
             if info:
