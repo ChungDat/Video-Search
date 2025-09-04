@@ -162,12 +162,12 @@ with result_container:
             origin = pack + '_' + video
             metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
             start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-            if frame_index < 10:
-                frame_index = f"00{frame_index}"
-            elif frame_index < 100:
-                frame_index = f"0{frame_index}"
-            else:
-                frame_index = str(frame_index)
+            # if frame_index < 10:
+            #     frame_index = f"00{frame_index}"
+            # elif frame_index < 100:
+            #     frame_index = f"0{frame_index}"
+            # else:
+            #     frame_index = str(frame_index)
             frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
             if pack == "L28":
                 video_data = os.path.join(L28_PATH, origin + ".mp4")
@@ -211,12 +211,12 @@ with result_container:
                 origin = pack + '_' + video
                 metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
                 start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-                if frame_index < 10:
-                    frame_index = f"00{frame_index}"
-                elif frame_index < 100:
-                    frame_index = f"0{frame_index}"
-                else:
-                    frame_index = str(frame_index)
+                # if frame_index < 10:
+                #     frame_index = f"00{frame_index}"
+                # elif frame_index < 100:
+                #     frame_index = f"0{frame_index}"
+                # else:
+                #     frame_index = str(frame_index)
                 frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
                 if hit.payload.get("pack") == "L28":
                     video_data = os.path.join(L28_PATH, origin + ".mp4")

@@ -55,7 +55,7 @@ st.markdown('''
 ###################
 # SIDEBAR - CONTROLS
 ###################
-with st.sidebar:
+with st.sidebar.container(height=350, border=False):
     st.title("Search Tools")
     
     # --- Text Query Section ---
@@ -165,12 +165,12 @@ if not st.session_state.sort_by_video:
             origin = pack + '_' + video
             metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
             start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-            if frame_index < 10:
-                frame_index = f"00{frame_index}"
-            elif frame_index < 100:
-                frame_index = f"0{frame_index}"
-            else:
-                frame_index = str(frame_index)
+            # if frame_index < 10:
+            #     frame_index = f"00{frame_index}"
+            # elif frame_index < 100:
+            #     frame_index = f"0{frame_index}"
+            # else:
+            #     frame_index = str(frame_index)
             frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
             if pack == "L28":
                 video_data = os.path.join(L28_PATH, origin + ".mp4")
@@ -178,7 +178,7 @@ if not st.session_state.sort_by_video:
                 video_data = get_frame_url(FPS_PATH, origin, metadata)
 
             with cols[i % num_of_cols]:
-                st.image(frame_path, use_column_width=True)
+                st.image(frame_path, use_container_width=True)
                 st.caption(f"{origin} - {start_time}s")
                 if st.button("Details", key=f"image_{i}", use_container_width=True):
                     show_details(
@@ -218,12 +218,12 @@ else:
                 origin = pack + '_' + video
                 metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
                 start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-                if frame_index < 10:
-                    frame_index = f"00{frame_index}"
-                elif frame_index < 100:
-                    frame_index = f"0{frame_index}"
-                else:
-                    frame_index = str(frame_index)
+                # if frame_index < 10:
+                #     frame_index = f"00{frame_index}"
+                # elif frame_index < 100:
+                #     frame_index = f"0{frame_index}"
+                # else:
+                #     frame_index = str(frame_index)
                 frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
                 if hit.payload.get("pack") == "L28":
                     video_data = os.path.join(L28_PATH, origin + ".mp4")
@@ -231,7 +231,7 @@ else:
                     video_data = get_frame_url(FPS_PATH, origin, metadata)
 
                 with cols[j % num_of_cols]:
-                    st.image(frame_path, use_column_width=True)
+                    st.image(frame_path, use_container_width=True)
                     st.caption(f"{start_time}s")
                     if st.button("Details", key=f"image_{candidate}_{j}", use_container_width=True):
                         show_details(
