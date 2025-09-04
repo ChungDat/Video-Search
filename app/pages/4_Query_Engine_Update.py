@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import sys
+import json
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from PATH import METADATA_PATH, FPS_PATH, L28_PATH
@@ -14,6 +15,10 @@ client = load_client()
 init_session_state()
 load_value("collection_name")
 load_value("file_content")
+
+# Load all object labels
+with open("all_objects.json", "r") as f:
+    all_objects = json.load(f)
 
 # Custom CSS for a more compact and polished sidebar
 st.markdown('''
@@ -55,12 +60,13 @@ st.markdown('''
 ###################
 # SIDEBAR - CONTROLS
 ###################
-with st.sidebar.container(height=350, border=False):
+with st.sidebar:
     st.title("Search Tools")
     
-    # --- Text Query Section ---
-    st.header("Text Query")
+    # --- Combined Query Section ---
+    st.header("Combined Query")
 
+    # --- Text Query Input ---
     if not st.session_state.inputs:
         st.button("➕ Add Query", on_click=add_input, use_container_width=True)
     else:
@@ -88,6 +94,9 @@ with st.sidebar.container(height=350, border=False):
         cols[0].button("➕ Add Query", on_click=add_input, use_container_width=True)
         cols[1].button("Clear All", on_click=clear_input, icon=":material/clear_all:", use_container_width=True)
 
+    # --- Image Query Input ---
+    st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"], key="image_upload")
+
     # --- Filter Section ---
     st.header("Filters")
     st.multiselect("Packs", options=st.session_state.available_packs, key="filter_packs", help="Select video packs to search within.")
@@ -99,6 +108,7 @@ with st.sidebar.container(height=350, border=False):
         filter_tags = sorted(list(set(filter_tags)))
     
     st.multiselect("Tags", options=filter_tags, key="filter_tags", help="Filter by tags within the selected packs.")
+    st.multiselect("Objects", options=all_objects, key="filter_objects", help="Filter by objects detected in the keyframes.")
     
     with st.expander("Pack Descriptions"):
         st.text('''L21: tin tức, 60 giây sáng
@@ -113,7 +123,9 @@ L29: du lịch văn hóa, đôi mắt Mê Kông
 L30: đời sống, lan toả năng lượng tích cực''')
 
     # --- Search Execution ---
-    st.button("🔍 Search", on_click=search_query, args=("Text Query", model, client, st.session_state.collection_name, 300), type="primary", use_container_width=True)
+    cols = st.columns(2)
+    cols[0].button("🔍 Search", on_click=search_query, args=(model, client, st.session_state.collection_name, 300), type="primary", use_container_width=True)
+    cols[1].button("Save Log", on_click=save_log, use_container_width=True)
 
     st.divider()
 
