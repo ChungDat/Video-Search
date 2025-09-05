@@ -30,9 +30,6 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-# Switch to the non-privileged user to run the application.
-USER appuser
-
 # Install system dependencies for OpenCV
 RUN apt-get update && apt-get install -y \
     libgl1 \
@@ -46,6 +43,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('clip-ViT-B-32').save('/app/models/clip')"
 
 ENV SENTENCE_TRANSFORMERS_HOME=/app/models
+
+# Switch to the non-privileged user to run the application.
+USER appuser
 
 # Copy the source code into the container.
 COPY . .
