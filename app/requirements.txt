@@ -1,0 +1,5 @@
+streamlit
+sentence-transformers
+opencv-python
+qdrant-client
+cap-from-youtube

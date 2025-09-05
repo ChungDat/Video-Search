@@ -376,7 +376,7 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
         else:
             final_query_vector = query_vectors[0]
         
-        st.session_state.results, _ = client.search(
+        st.session_state.results = client.search(
             collection_name=collection_name,
             query_vector=final_query_vector,
             limit=limit,
@@ -480,7 +480,7 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
 @st.cache_resource
 def load_model() -> SentenceTransformer:
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer('clip-ViT-B-32')
+    model = SentenceTransformer("/app/models/clip")
     return model
 
 @st.cache_resource
