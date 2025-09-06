@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from PATH import METADATA_PATH, FPS_PATH, L28_PATH
+from PATH import METADATA_PATH, FPS_PATH, L28_PATH, KEYFRAMES_PATH
 from utils import *
 from state import init_session_state
 
@@ -15,40 +15,26 @@ init_session_state()
 load_value("collection_name")
 load_value("file_content")
 
-######################
-# SUBMISSION SECTION #
-######################
-st.subheader("Submission")
-submission_container = st.container(
-    border=True,
-    key="submission_container",
-)
-with submission_container:
-    cols = st.columns([0.3, 0.1, 0.6])
-    with cols[0]:
-        st.text_input(
-            label='File name',
-            key='file_name',
-            width=300,
-        )
-    with cols[1]:
-        st.write("")
-        st.write("")
-        st.write(".csv")
+with st.sidebar:
+    # --- Submission Section ---
+    st.header("Submission")
+    
+    cols = st.columns([3, 1])
+    cols[0].text_input('File name', key='file_name', placeholder="e.g., results_01")
+    cols[1].write("`.csv`")
+    
     st.text_area(
-        label="Answer",
-        height=150,
+        "Answers",
         key="_file_content",
         on_change=store_value,
-        args=("file_content",)
+        args=("file_content",),
+        placeholder="Add answers for your submission file here...",
+        height=100
     )
-submission_widget_container = st.container(key='submission_widget_container')
-with submission_widget_container:
-    cols = st.columns([0.15, 0.15, 0.5])
-    with cols[0]:
-        st.button("Submit", on_click=submit, icon=":material/assignment:")
-    with cols[1]:
-        st.button("Clear Submission", on_click=clear_submission, icon=":material/clear_all:")
+    
+    cols = st.columns(2)
+    cols[0].button("Submit", key="submit_button", on_click=submit, icon=":material/assignment:", use_container_width=True)
+    cols[1].button("Clear", key="clear_submission_button", on_click=clear_submission, icon=":material/clear_all:", use_container_width=True)
 
 origin_container = st.container(key="origin_container")
 with origin_container:
@@ -77,10 +63,7 @@ if st.session_state.seek_pack:
 
     for i, origin in enumerate(origins):
         with cols[i % 10]:
-            frame_dir = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin)
-            files = [f for f in os.listdir(frame_dir)]
-            first_file = min(files)
-            frame = os.path.join(frame_dir, first_file)
+            frame = os.path.join(KEYFRAMES_PATH, origin, "001.jpg")
             if st.session_state.seek_pack == "L28":
                 video_data = os.path.join(L28_PATH, origin + ".mp4")
             else:
@@ -88,9 +71,9 @@ if st.session_state.seek_pack:
                 video_data = get_frame_url(FPS_PATH, origin, metadata)
             if st.button(label=origin, key=f"video_{i}", width='content'): 
                 show_details(origin=origin,
-                             frame_index=0,
-                             frame=first_file,
-                             data=video_data,
-                             frame_path=frame,
-                             fps_file=FPS_PATH,
-                             video_name=origin)
+                            frame_index=0,
+                            frame="001.jpg",
+                            data=video_data,
+                            frame_path=frame,
+                            fps_file=FPS_PATH,
+                            video_name=origin)

@@ -34,7 +34,7 @@ def init_session_state():
         st.session_state.available_tags = json.load(open("all_tags.json", "r", encoding="utf-8"))
 
     if "available_packs" not in st.session_state:
-        st.session_state.available_packs = ["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30"]
+        st.session_state.available_packs = ["L21", "L22", "L23", "L24", "L25", "L26", "L27", "L28", "L29", "L30", "K01", "K02", "K03", "K04", "K05", "K06", "K07", "K08", "K09", "K10", "K11", "K12", "K13", "K14", "K15", "K16", "K17", "K18", "K19", "K20"]
     
     if "available_videos_per_pack" not in st.session_state:
         st.session_state.available_videos_per_pack = json.load(open("videos_per_pack.json", 'r'))
