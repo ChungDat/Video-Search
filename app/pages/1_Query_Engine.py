@@ -9,12 +9,13 @@ from utils import *
 from state import init_session_state
 
 st.set_page_config(page_title="Query Engine", layout='wide')
-
+st.empty()
 model = load_model()
 client = load_client()
 init_session_state()
 load_value("collection_name")
 load_value("file_content")
+disable_scroll_bar()
 
 # Load all object labels
 with open("all_objects.json", "r") as f:
@@ -68,7 +69,7 @@ with st.sidebar:
 
     # --- Text Query Input ---
     if not st.session_state.inputs:
-        st.button("➕ Add Query", on_click=add_input, use_container_width=True)
+        st.button("➕ Add Query", on_click=add_input, width="stretch")
     else:
         query_tabs = st.tabs([f"Query {i+1}" for i, inp in enumerate(st.session_state.inputs)])
         for i, (tab, inp) in enumerate(zip(query_tabs, st.session_state.inputs)):
@@ -87,7 +88,7 @@ with st.sidebar:
                         key=f"remove_input_{inp['id']}",
                         on_click=remove_input,
                         args=(inp["id"],),
-                        use_container_width=True
+                        width="stretch"
                     )
         
         cols = st.columns(2)
@@ -153,87 +154,41 @@ L30: đời sống, lan toả năng lượng tích cực''')
 ###################
 # MAIN AREA - SCROLLABLE RESULTS
 ###################
-st.header("Search Results")
+with st.container():
+    st.header("Search Results")
 
-# Result controls
-cols = st.columns([2, 1, 1])
-with cols[0]:
-    num_of_cols = st.slider("Columns", min_value=2, max_value=15, value=5, step=1)
-with cols[1]:
-    st.toggle("Sort by video", key="sort_by_video")
-with cols[2]:
-    if st.session_state.results:
-        st.write(f"**{len(st.session_state.results)} results**")
+    # Result controls
+    cols = st.columns([2, 1, 1])
+    with cols[0]:
+        num_of_cols = st.slider("Columns", min_value=2, max_value=15, value=5, step=1)
+    with cols[1]:
+        st.toggle("Sort by video", key="sort_by_video")
+    with cols[2]:
+        if st.session_state.results:
+            st.write(f"**{len(st.session_state.results)} results**")
 
-# Results display
-if not st.session_state.sort_by_video:
-    if st.session_state.results:
-        cols = st.columns(num_of_cols)
-        for i, hit in enumerate(st.session_state.results):
-            pack = hit.payload.get("pack")
-            video = hit.payload.get("video")
-            frame_index = hit.payload.get("frame_index")
-            frame = hit.payload.get("frame")
-            origin = pack + '_' + video
-            metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
-            start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
-            frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
-            if pack == "L28":
-                video_data = os.path.join(L28_PATH, origin + ".mp4")
-            else:
-                video_data = get_frame_url(FPS_PATH, origin, metadata)
-
-            with cols[i % num_of_cols]:
-                st.image(frame_path, use_container_width=True)
-                st.caption(f"{origin} - {start_time}s")
-                if st.button("Details", key=f"image_{i}", use_container_width=True):
-                    show_details(
-                        origin=origin,
-                        frame_index=frame_index,
-                        frame=frame,
-                        data=video_data,
-                        frame_path=frame_path,
-                        start_time=start_time,
-                        fps_file=FPS_PATH,
-                        video_name=origin,
-                    )
-    else:
-        st.info("No results to display. Run a search to see results here.")
-else:
-    if st.session_state.results:
-        for i, candidate in enumerate(st.session_state.origin_rank):
-            video_hits = []
-            for hit in st.session_state.results_sorted:
-                pack = hit.payload.get("pack")
-                video = hit.payload.get("video")
-                origin = pack + '_' + video
-                if not video_hits and origin == candidate:
-                    video_hits.append(hit)
-                elif video_hits:
-                    if origin == candidate:
-                        video_hits.append(hit)
-                    else:
-                        break
-            st.subheader(f"{i + 1}. {candidate}")
+    # Results display
+    if not st.session_state.sort_by_video:
+        if st.session_state.results:
             cols = st.columns(num_of_cols)
-            for j, hit in enumerate(video_hits):
+            for i, hit in enumerate(st.session_state.results):
                 pack = hit.payload.get("pack")
                 video = hit.payload.get("video")
-                frame = hit.payload.get("frame")
                 frame_index = hit.payload.get("frame_index")
+                frame = hit.payload.get("frame")
                 origin = pack + '_' + video
                 metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
                 start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
                 frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
-                if hit.payload.get("pack") == "L28":
+                if pack == "L28":
                     video_data = os.path.join(L28_PATH, origin + ".mp4")
                 else:
                     video_data = get_frame_url(FPS_PATH, origin, metadata)
 
-                with cols[j % num_of_cols]:
-                    st.image(frame_path, use_container_width=True)
-                    st.caption(f"{start_time}s")
-                    if st.button("Details", key=f"image_{candidate}_{j}", use_container_width=True):
+                with cols[i % num_of_cols]:
+                    st.image(frame_path, width="stretch")
+                    st.caption(f"{origin} - {start_time}s")
+                    if st.button("Details", key=f"image_{i}", width="stretch"):
                         show_details(
                             origin=origin,
                             frame_index=frame_index,
@@ -244,6 +199,53 @@ else:
                             fps_file=FPS_PATH,
                             video_name=origin,
                         )
-            st.divider()
+        else:
+            st.info("No results to display. Run a search to see results here.")
     else:
-        st.info("No results to display. Run a search to see results here.")
+        if st.session_state.results:
+            for i, candidate in enumerate(st.session_state.origin_rank):
+                video_hits = []
+                for hit in st.session_state.results_sorted:
+                    pack = hit.payload.get("pack")
+                    video = hit.payload.get("video")
+                    origin = pack + '_' + video
+                    if not video_hits and origin == candidate:
+                        video_hits.append(hit)
+                    elif video_hits:
+                        if origin == candidate:
+                            video_hits.append(hit)
+                        else:
+                            break
+                st.subheader(f"{i + 1}. {candidate}")
+                cols = st.columns(num_of_cols)
+                for j, hit in enumerate(video_hits):
+                    pack = hit.payload.get("pack")
+                    video = hit.payload.get("video")
+                    frame = hit.payload.get("frame")
+                    frame_index = hit.payload.get("frame_index")
+                    origin = pack + '_' + video
+                    metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
+                    start_time = get_frame_start_time(FPS_PATH, origin, frame_index)
+                    frame_path = os.path.join(st.session_state.available_frames_path[st.session_state.collection_name], origin, frame)
+                    if hit.payload.get("pack") == "L28":
+                        video_data = os.path.join(L28_PATH, origin + ".mp4")
+                    else:
+                        video_data = get_frame_url(FPS_PATH, origin, metadata)
+
+                    with cols[j % num_of_cols]:
+                        st.image(frame_path, width="stretch")
+                        st.caption(f"{start_time}s")
+                        if st.button("Details", key=f"image_{candidate}_{j}", width="stretch"):
+                            show_details(
+                                origin=origin,
+                                frame_index=frame_index,
+                                frame=frame,
+                                data=video_data,
+                                frame_path=frame_path,
+                                start_time=start_time,
+                                fps_file=FPS_PATH,
+                                video_name=origin,
+                            )
+                st.divider()
+        else:
+            st.info("No results to display. Run a search to see results here.")

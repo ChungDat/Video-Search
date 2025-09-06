@@ -492,3 +492,17 @@ def load_client() -> QdrantClient:
         timeout=60,
     )
     return client
+
+def disable_scroll_bar():
+    st.markdown("""
+    <style>
+    /* Make main area not create its own scrollbar */
+    section[data-testid="stMain"] { overflow: visible !important; }
+
+    /* Ensure app container doesn’t trap scroll */
+    div[data-testid="stAppViewContainer"] { overflow: visible !important; }
+
+    /* Optional: stabilize images */
+    [data-testid="stImage"] img { max-width: 100%; height: auto; display: block; }
+    </style>
+    """, unsafe_allow_html=True)
