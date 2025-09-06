@@ -161,7 +161,7 @@ def get_frame_start_time(fps_file: str, video: str, frame_index: float) -> float
         return 0.0
     return frame_index / fps
         
-def get_frame_url(file: str, video: str, metatdata: dict, frame_index: int = 0) -> str:
+def get_frame_url(file: str, video: str, metadata: dict, frame_index: int = 0) -> str:
     """
     Get the URL to youtube of a specific frame from metadata.
     Args:
@@ -174,7 +174,7 @@ def get_frame_url(file: str, video: str, metatdata: dict, frame_index: int = 0) 
     """
     
     time = get_frame_start_time(file, video, frame_index)
-    url = metatdata["watch_url"] + "&t=" + str(int(time))
+    url = metadata["watch_url"] + "&t=" + str(int(time))
     return url
 
 def sample_frames(video_path: str, fromYoutube: bool, start_timestamp_in_s: int, end_timestamp_in_s: int, step: int, scale: float) -> tuple[list[np.ndarray], int]:
@@ -480,11 +480,15 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
 @st.cache_resource
 def load_model() -> SentenceTransformer:
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer('clip-ViT-B-32')
+    model = SentenceTransformer("/app/models/clip")
     return model
 
 @st.cache_resource
 def load_client() -> QdrantClient:
     from qdrant_client import QdrantClient
-    client = QdrantClient(host="localhost", port=6333)
+    client = QdrantClient(
+        url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io:6333", 
+        api_key=os.getenv("QDRANT_TOKEN_READ"),
+        timeout=60,
+    )
     return client
