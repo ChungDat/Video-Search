@@ -7,6 +7,9 @@ import cv2
 from cap_from_youtube import cap_from_youtube
 import numpy as np
 import time
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
+from qdrant_client.http import models
 
 ##########################
 # PROCESS VIDEO FUNCTION #
@@ -63,6 +66,12 @@ def get_video_fps(file: str, video: str) -> float:
         return 0.0
     return float(fps_data[video])
 
+def get_video_duration(video_name: str) -> int:
+    """Gets the duration of a video in seconds."""
+    from PATH import METADATA_PATH
+    metadata = get_video_metadata(METADATA_PATH, video_name, ["length"])
+    return metadata.get("length", 0)
+
 def get_keyframe_data(folder: str, video: str) -> pd.DataFrame:
     """
     Get timestamp, fps, frame_index of each keyframe in video.
@@ -76,6 +85,24 @@ def get_keyframe_data(folder: str, video: str) -> pd.DataFrame:
     df = pd.read_csv(os.path.join(folder, video + ".csv"))
     return df
 
+def get_object_data(folder: str, video: str, frame_n: str) -> list:
+    """
+    Get object data from a JSON file.
+
+    Args:
+        folder (str): Folder where object files are stored.
+        video (str): Name of video.
+        frame_n (str): Name of the keyframe file (e.g., '001.jpg').
+    Returns:
+        list: A list of detected object entities.
+    """
+    json_path = os.path.join(folder, video, frame_n.replace('.jpg', '.json'))
+    if not os.path.exists(json_path):
+        return []
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+        return data.get("detection_class_entities", [])
+
 def get_keyframe_image_path(folder: str, video: str, frame_n: int) -> str:
     """
     Get path to keyframe.
@@ -88,12 +115,12 @@ def get_keyframe_image_path(folder: str, video: str, frame_n: int) -> str:
         str: Path to keyframe.
     """
     
-    if frame_index < 10:
-        frame_index = "00" + str(frame_n)
-    elif frame_index < 100:
-        frame_index = "0" + str(frame_n)
+    if frame_n < 10:
+        frame_n = "00" + str(frame_n)
+    elif frame_n < 100:
+        frame_n = "0" + str(frame_n)
     else:
-        frame_index = str(frame_n)
+        frame_n = str(frame_n)
 
     path = os.path.join(folder, video, frame_n + ".jpg")
     if not os.path.exists(path):
@@ -130,9 +157,11 @@ def get_frame_start_time(fps_file: str, video: str, frame_index: float) -> float
         float: Timestamp of frame.
     """
     fps = get_video_fps(fps_file, video)
+    if fps == 0:
+        return 0.0
     return frame_index / fps
         
-def get_frame_url(file: str, video: str, metadata: dict, frame_index: int = 0) -> str:
+def get_frame_url(file: str, video: str, metatdata: dict, frame_index: int = 0) -> str:
     """
     Get the URL to youtube of a specific frame from metadata.
     Args:
@@ -145,7 +174,7 @@ def get_frame_url(file: str, video: str, metadata: dict, frame_index: int = 0) -
     """
     
     time = get_frame_start_time(file, video, frame_index)
-    url = metadata["watch_url"] + "&t=" + str(int(time))
+    url = metatdata["watch_url"] + "&t=" + str(int(time))
     return url
 
 def sample_frames(video_path: str, fromYoutube: bool, start_timestamp_in_s: int, end_timestamp_in_s: int, step: int, scale: float) -> tuple[list[np.ndarray], int]:
@@ -289,63 +318,92 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     if not tags and not videos:
         return None
     conditions = []
-    conditions.append(
-        models.FieldCondition(
-            key="pack",
-            match=models.MatchAny(any=videos)
-        )
-    )
-    for tag in tags:
+    if videos:
         conditions.append(
             models.FieldCondition(
-                key="tags",
-                match=models.MatchValue(value=tag)
+                key="pack",
+                match=models.MatchAny(any=videos)
             )
         )
+    if tags:
+        for tag in tags:
+            conditions.append(
+                models.FieldCondition(
+                    key="tags",
+                    match=models.MatchValue(value=tag)
+                )
+            )
+    if not conditions:
+        return None
     final_filter = models.Filter(
         must=conditions,
     )
     return final_filter
 
-def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
-    """Perform search based on the current inputs and update results in session state.
-    
-    Args:
-        mode (str): The mode of the query, either "Text Query" or "Image Query".
-    Returns:
-        None
-    """
-    if mode == 'Text Query':
-        queries = []
-        for inp in st.session_state.inputs:
-            if inp["query"]:
-                queries.append(inp["query"])
-        if not queries:
-            st.warning("Please enter at least one query.")
-            return []
-        if len(queries) > 1:
-            st.warning("Currently only single query is supported. Using the first query.")
-            return
-        log_query = queries
-    
-    elif mode == 'Image Query':
-        if not st.session_state.image_upload:
-            st.warning("Please upload an image.")
-            return []
-        from PIL import Image
-        image = Image.open(st.session_state.image_upload).convert("RGB")
-        queries = [image]
-        log_query = []
+def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
+    """Perform search based on the current inputs and update results in session state."""
+    text_queries = []
+    for inp in st.session_state.inputs:
+        if inp["query"]:
+            text_queries.append(inp["query"])
 
+    image_query = st.session_state.get("image_upload")
     query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
-    query_vector = model.encode(queries[0]).tolist()
 
-    st.session_state.results = client.search(
-        collection_name=collection_name,
-        query_vector=query_vector,
-        limit=limit,
-        query_filter=query_filter,
-    )
+    if not text_queries and not image_query and not query_filter and not st.session_state.filter_objects:
+        st.warning("Please enter a query or select a filter.")
+        return
+
+    query_vectors = []
+    log_query = []
+
+    if text_queries:
+        if len(text_queries) > 1:
+            st.warning("Currently only single text query is supported. Using the first query.")
+        text_vector = model.encode(text_queries[0]).tolist()
+        query_vectors.append(text_vector)
+        log_query.append(text_queries[0])
+
+    if image_query:
+        from PIL import Image
+        image = Image.open(image_query).convert("RGB")
+        image_vector = model.encode(image).tolist()
+        query_vectors.append(image_vector)
+
+    if query_vectors:
+        if len(query_vectors) > 1:
+            final_query_vector = np.mean(query_vectors, axis=0).tolist()
+        else:
+            final_query_vector = query_vectors[0]
+        
+        st.session_state.results = client.search(
+            collection_name=collection_name,
+            query_vector=final_query_vector,
+            limit=limit,
+            query_filter=query_filter,
+        )
+    else: # No query, just filters
+        st.session_state.results, _ = client.scroll(
+            collection_name=collection_name,
+            scroll_filter=query_filter,
+            limit=limit
+        )
+
+    # Post-filter by objects
+    if st.session_state.filter_objects:
+        filtered_results = []
+        # If no other filters are applied, we need to get all points first
+        if not query_filter and not query_vectors:
+            all_results, _ = client.scroll(collection_name=collection_name, limit=10000) # A high limit to get all points
+            st.session_state.results = all_results
+
+        for hit in st.session_state.results:
+            video_name = hit.payload.get("pack") + '_' + hit.payload.get("video")
+            frame_file = hit.payload.get("frame")
+            object_data = get_object_data("samples/objects", video_name, frame_file)
+            if all(obj in object_data for obj in st.session_state.filter_objects):
+                filtered_results.append(hit)
+        st.session_state.results = filtered_results
 
     st.session_state.origin_rank = []
     seen = set()
@@ -360,7 +418,7 @@ def search_query(mode: str, model: SentenceTransformer, client: QdrantClient, co
         st.session_state.results,
         key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
     )
-    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags})
+    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
 
 def save_log():
     with open("log.json", 'w') as f:
@@ -387,35 +445,27 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
     info = f"Video: {origin}\tFrame index: {frame_index}\tFrame name: {frame}"
     detail_container = st.container(key='detail_container', border=False)
     st.session_state.fps = get_video_fps(fps_file, video_name)
+    
+    # Initialize calculator_index with a default value
+    calculator_index = int(start_time * st.session_state.fps)
+
     with detail_container:
         cols = st.columns([0.3, 0.3])
         with cols[0]:
             st.video(data, start_time=start_time)
-            frame_calculator_container = st.container(key='calculator_container')
-            with frame_calculator_container:
-                sub_cols = st.columns([1, 1, 1, 2])
-                with sub_cols[0]:
-                    st.number_input(
-                        label="Hour",
-                        key="calculator_hour",
-                        step=0.1,
-                        )
-                with sub_cols[1]:
-                    st.number_input(
-                        label="Minute", 
-                        key="calculator_minute",
-                        step=0.1,
-                        )
-                with sub_cols[2]:
-                    st.number_input(
-                        label="Second",
-                        key="calculator_second",
-                        step=0.1,
-                        )
-                with sub_cols[3]:
-                    st.write(f"FPS: {st.session_state.fps}")
-                    calculator_index = int((st.session_state.calculator_hour * 3600 + st.session_state.calculator_minute * 60 + st.session_state.calculator_second) * st.session_state.fps)
-                    st.write(f"Frame Index {calculator_index}")
+            duration = get_video_duration(video_name)
+            if duration > 0:
+                selected_seconds = st.slider("Select time", 0, duration, int(start_time))
+                
+                minutes = selected_seconds // 60
+                seconds = selected_seconds % 60
+                
+                st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
+                
+                # Update calculator_index based on slider
+                calculator_index = int(selected_seconds * st.session_state.fps)
+                st.write(f"Frame Index: {calculator_index}")
+
         with cols[1]:
             st.image(frame_path, use_container_width=True)
             if info:
@@ -430,15 +480,11 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
 @st.cache_resource
 def load_model() -> SentenceTransformer:
     from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer("/app/models/clip")
+    model = SentenceTransformer('clip-ViT-B-32')
     return model
 
 @st.cache_resource
 def load_client() -> QdrantClient:
     from qdrant_client import QdrantClient
-    client = QdrantClient(
-        url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io:6333", 
-        api_key=os.getenv("QDRANT_TOKEN_READ"),
-        timeout=60,
-    )
+    client = QdrantClient(host="localhost", port=6333)
     return client
