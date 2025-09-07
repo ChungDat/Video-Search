@@ -123,20 +123,6 @@ L27: du lịch văn hóa, VN đi là ghiền
 L28: du lịch văn hóa, tản mạn Mê Kông
 L29: du lịch văn hóa, đôi mắt Mê Kông
 L30: đời sống, lan toả năng lượng tích cực''')
-
-    # --- Search Execution ---
-    cols = st.columns(2)
-    cols[0].button("🔍 Search", on_click=search_query, args=(model, client, st.session_state.collection_name, 300), type="primary", use_container_width=True)
-    cols[1].button("Save Log", on_click=save_log, use_container_width=True)
-
-    st.divider()
-
-    # --- Submission Section ---
-    st.header("Submission")
-    
-    cols = st.columns([3, 1])
-    cols[0].text_input('File name', key='file_name', placeholder="e.g., results_01")
-    cols[1].write("`.csv`")
     
     # --- Search Execution ---
     cols = st.columns(2)
