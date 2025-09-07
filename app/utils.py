@@ -335,11 +335,36 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
             )
     if not conditions:
         return None
+    if videos:
+        conditions.append(
+            models.FieldCondition(
+                key="pack",
+                match=models.MatchAny(any=videos)
+            )
+        )
+    if tags:
+        for tag in tags:
+            conditions.append(
+                models.FieldCondition(
+                    key="tags",
+                    match=models.MatchValue(value=tag)
+                )
+            )
+    if not conditions:
+        return None
     final_filter = models.Filter(
         must=conditions,
     )
     return final_filter
 
+def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
+    """Perform search based on the current inputs and update results in session state."""
+    text_queries = []
+    for inp in st.session_state.inputs:
+        if inp["query"]:
+            text_queries.append(inp["query"])
+
+    image_query = st.session_state.get("image_upload")
 def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
     """Perform search based on the current inputs and update results in session state."""
     text_queries = []
@@ -487,7 +512,7 @@ def load_model() -> SentenceTransformer:
 def load_client() -> QdrantClient:
     from qdrant_client import QdrantClient
     client = QdrantClient(
-        url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io:6333", 
+        url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io", 
         api_key=os.getenv("QDRANT_TOKEN_READ"),
         timeout=60,
     )

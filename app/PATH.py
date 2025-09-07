@@ -20,3 +20,4 @@ MY_MAP_KEYFRAMES_PATH = os.path.join(PROJECT_ROOT, "my-map-keyframes")
 MY_KEYFRAMES_PATH = os.path.join(PROJECT_ROOT, "my-keyframes")
 
 L28_PATH = "https://huggingface.co/datasets/ChungDat/hcm-aic2025-additional-data/resolve/main/video/"
+L28_PATH = "https://huggingface.co/datasets/ChungDat/hcm-aic2025-additional-data/resolve/main/video/"
