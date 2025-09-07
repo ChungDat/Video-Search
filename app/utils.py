@@ -400,7 +400,7 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
         for hit in st.session_state.results:
             video_name = hit.payload.get("pack") + '_' + hit.payload.get("video")
             frame_file = hit.payload.get("frame")
-            object_data = get_object_data("samples/objects", video_name, frame_file)
+            object_data = get_object_data("objects", video_name, frame_file)
             if all(obj in object_data for obj in st.session_state.filter_objects):
                 filtered_results.append(hit)
         st.session_state.results = filtered_results
