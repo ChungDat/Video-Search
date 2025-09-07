@@ -21,7 +21,7 @@ def get_all_object_labels(root_dir):
     return sorted(list(all_labels))
 
 if __name__ == '__main__':
-    objects_root = 'samples/objects'
+    objects_root = 'objects'
     all_labels = get_all_object_labels(objects_root)
     with open('all_objects.json', 'w') as f:
         json.dump(all_labels, f, indent=4)

@@ -16,6 +16,27 @@ load_value("collection_name")
 load_value("file_content")
 disable_scroll_bar()
 
+with st.sidebar:
+    # --- Submission Section ---
+    st.header("Submission")
+    
+    cols = st.columns([3, 1])
+    cols[0].text_input('File name', key='file_name', placeholder="e.g., results_01")
+    cols[1].write("`.csv`")
+    
+    st.text_area(
+        "Answers",
+        key="_file_content",
+        on_change=store_value,
+        args=("file_content",),
+        placeholder="Add answers for your submission file here...",
+        height=100
+    )
+    
+    cols = st.columns(2)
+    cols[0].button("Submit", key="submit_button", on_click=submit, icon=":material/assignment:", use_container_width=True)
+    cols[1].button("Clear", key="clear_submission_button", on_click=clear_submission, icon=":material/clear_all:", use_container_width=True)
+
 with st.container():
     origin_container = st.container(key="origin_container")
     with origin_container:
@@ -35,12 +56,12 @@ with st.container():
                 key="seek_videos",
             )
 
-    if st.session_state.seek_pack:
-        cols = st.columns(10)
-        if st.session_state.seek_videos:
-            origins = [st.session_state.seek_pack + '_' + video for video in st.session_state.seek_videos]
-        else:
-            origins = [st.session_state.seek_pack + '_' + video for video in st.session_state.available_videos_per_pack[st.session_state.seek_pack]]
+        if st.session_state.seek_pack:
+            cols = st.columns(10)
+            if st.session_state.seek_videos:
+                origins = [st.session_state.seek_pack + '_' + video for video in st.session_state.seek_videos]
+            else:
+                origins = [st.session_state.seek_pack + '_' + video for video in st.session_state.available_videos_per_pack[st.session_state.seek_pack]]
 
         for i, origin in enumerate(origins):
             with cols[i % 10]:

@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 import json
+import json
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from PATH import METADATA_PATH, FPS_PATH, L28_PATH
@@ -137,7 +138,22 @@ L30: đời sống, lan toả năng lượng tích cực''')
     cols[0].text_input('File name', key='file_name', placeholder="e.g., results_01")
     cols[1].write("`.csv`")
     
+    # --- Search Execution ---
+    cols = st.columns(2)
+    cols[0].button("🔍 Search", on_click=search_query, args=(model, client, st.session_state.collection_name, 300), type="primary", use_container_width=True)
+    cols[1].button("Save Log", on_click=save_log, use_container_width=True)
+
+    st.divider()
+
+    # --- Submission Section ---
+    st.header("Submission")
+    
+    cols = st.columns([3, 1])
+    cols[0].text_input('File name', key='file_name', placeholder="e.g., results_01")
+    cols[1].write("`.csv`")
+    
     st.text_area(
+        "Answers",
         "Answers",
         key="_file_content",
         on_change=store_value,
