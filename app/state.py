@@ -54,3 +54,6 @@ def init_session_state():
     # Load all object labels
     if "all_objects" not in st.session_state:
         st.session_state.all_objects = json.load(open("all_objects.json", "r"))
+
+    if "filter_ignore" not in st.session_state:
+        st.session_state.filter_ignore = set()

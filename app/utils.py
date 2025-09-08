@@ -305,24 +305,24 @@ def load_value(key: str) -> None:
     st.session_state["_" + key] = st.session_state[key]
 
 @st.cache_data
-def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
+def create_filter_conditions(packs: list[str], tags: list[str]) -> list[models.FieldCondition] | None:
     """
-    Create filter to search for videos with specific tags.
+    Create conditions to search for videos in packs with specific tags.
 
     Agrs:
-        videos (list[str]): A list of selected videos.
+        packs (list[str]): A list of selected packs.
         tags (list[str]): A list of selected tags.
     Returns:
-        models.Filter | None: A filter if videos or tags is provided. Returns None otherwise.
+        list[models.FieldCondition] | None: A lsit of conditions if packs or tags is provided. Returns None otherwise.
     """
-    if not tags and not videos:
+    if not tags and not packs:
         return None
     conditions = []
-    if videos:
+    if packs:
         conditions.append(
             models.FieldCondition(
                 key="pack",
-                match=models.MatchAny(any=videos)
+                match=models.MatchAny(any=packs)
             )
         )
     if tags:
@@ -335,10 +335,41 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
             )
     if not conditions:
         return None
-    final_filter = models.Filter(
-        must=conditions,
-    )
-    return final_filter
+    return conditions
+
+@st.cache_data
+def create_ignore_condition(origins: set[str]) -> list[models.FieldCondition] | None:
+    """
+    Create conditions to ignore when searching for videos.
+
+    Agrs:
+        origins (list[str]): A list of videos to ignore.
+    Returns:
+        list[models.FieldCondition] | None: A list of conditions if origins is provided. Returns None otherwise.
+    """
+
+    if not origins:
+        return None
+    conditions = []
+    for origin in origins:
+        pack, video = origin.split('_')
+        conditions.append(
+            models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="pack",
+                        match=models.MatchValue(value=pack)
+                    ),
+                    models.FieldCondition(
+                        key="video",
+                        match=models.MatchValue(value=video)
+                    ),
+                ]
+            )
+        )
+    if not conditions:
+        return None
+    return conditions
 
 def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
     """Perform search based on the current inputs and update results in session state."""
@@ -348,9 +379,10 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             text_queries.append(inp["query"])
 
     image_query = st.session_state.get("image_upload")
-    query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
+    query_condition = create_filter_conditions(st.session_state.filter_packs, st.session_state.filter_tags)
+    ignore_condition = create_ignore_condition(st.session_state.filter_ignore)
 
-    if not text_queries and not image_query and not query_filter and not st.session_state.filter_objects:
+    if not text_queries and not image_query and not query_condition and not st.session_state.filter_objects:
         st.warning("Please enter a query or select a filter.")
         return
 
@@ -380,12 +412,12 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             collection_name=collection_name,
             query_vector=final_query_vector,
             limit=limit,
-            query_filter=query_filter,
+            query_filter=models.Filter(must=query_condition, must_not=ignore_condition),
         )
     else: # No query, just filters
         st.session_state.results, _ = client.scroll(
             collection_name=collection_name,
-            scroll_filter=query_filter,
+            scroll_filter=models.Filter(must=query_condition, must_not=ignore_condition),
             limit=limit
         )
 
@@ -393,7 +425,7 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
     if st.session_state.filter_objects:
         filtered_results = []
         # If no other filters are applied, we need to get all points first
-        if not query_filter and not query_vectors:
+        if not query_condition and not query_vectors:
             all_results, _ = client.scroll(collection_name=collection_name, limit=10000) # A high limit to get all points
             st.session_state.results = all_results
 
@@ -460,11 +492,16 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
                 minutes = selected_seconds // 60
                 seconds = selected_seconds % 60
                 
-                st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
-                
-                # Update calculator_index based on slider
-                calculator_index = int(selected_seconds * st.session_state.fps)
-                st.write(f"Frame Index: {calculator_index}")
+                sub_cols = st.columns(2)
+                with sub_cols[0]:
+                    st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
+                    
+                    # Update calculator_index based on slider
+                    calculator_index = int(selected_seconds * st.session_state.fps)
+                    st.write(f"Frame Index: {calculator_index}")
+                with sub_cols[1]:
+                    if st.button("Ignore this video"):
+                        st.session_state.filter_ignore.add(origin)
 
         with cols[1]:
             st.image(frame_path, use_container_width=True)
