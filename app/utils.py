@@ -1,15 +1,16 @@
-from __future__ import annotations # for type hint
 import pandas as pd
 import streamlit as st
+import numpy as np
 import os
 import json
 import cv2
-from cap_from_youtube import cap_from_youtube
-import numpy as np
 import time
-from qdrant_client import QdrantClient
+from cap_from_youtube import cap_from_youtube
 from sentence_transformers import SentenceTransformer
 from qdrant_client.http import models
+from qdrant_client import QdrantClient
+from dotenv import load_dotenv
+from PATH import METADATA_PATH
 
 ##########################
 # PROCESS VIDEO FUNCTION #
@@ -68,7 +69,7 @@ def get_video_fps(file: str, video: str) -> float:
 
 def get_video_duration(video_name: str) -> int:
     """Gets the duration of a video in seconds."""
-    from PATH import METADATA_PATH
+
     metadata = get_video_metadata(METADATA_PATH, video_name, ["length"])
     return metadata.get("length", 0)
 
@@ -293,7 +294,7 @@ def clear_input() -> None:
 def add_answer(answer: str) -> None:
     st.session_state.file_content += answer + "\n"
     
-def clear_submission():
+def clear_submission() -> None:
     st.session_state.file_name = ""
     st.session_state.file_content = ""
 
@@ -314,7 +315,6 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     Returns:
         models.Filter | None: A filter if videos or tags is provided. Returns None otherwise.
     """
-    from qdrant_client.http import models
     if not tags and not videos:
         return None
     conditions = []
@@ -420,7 +420,7 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
     )
     st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
 
-def save_log():
+def save_log() -> None:
     with open("log.json", 'w') as f:
         json.dump(st.session_state.log, f)
         st.success("Successfully dump log to log.json")
@@ -450,7 +450,7 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
     calculator_index = int(start_time * st.session_state.fps)
 
     with detail_container:
-        cols = st.columns([0.3, 0.3])
+        cols = st.columns([0.65, 0.35])
         with cols[0]:
             st.video(data, start_time=start_time)
             duration = get_video_duration(video_name)
@@ -479,13 +479,13 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
 
 @st.cache_resource
 def load_model() -> SentenceTransformer:
-    from sentence_transformers import SentenceTransformer
+    
     model = SentenceTransformer('clip-ViT-B-32')
     return model
 
 @st.cache_resource
 def load_client() -> QdrantClient:
-    from qdrant_client import QdrantClient
+    load_dotenv()
     client = QdrantClient(
         url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io", 
         api_key=os.getenv("QDRANT_TOKEN_READ"),

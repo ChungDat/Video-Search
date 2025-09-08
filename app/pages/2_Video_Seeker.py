@@ -8,12 +8,47 @@ from utils import *
 from state import init_session_state
 
 st.set_page_config(page_title="Video Seeker", layout='wide')
-st.sidebar.header("Video Seeker")
 
 client = load_client()
 init_session_state()
 load_value("collection_name")
 load_value("file_content")
+
+# Custom CSS for a more compact and polished sidebar
+st.markdown('''
+<style>
+    /* General sidebar enhancements */
+    [data-testid="stSidebar"] {
+        width: 350px;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    [data-testid="stSidebar"] .stButton button {
+        margin-top: 0.5em;
+    }
+    [data-testid="stSidebar"] .stExpander {
+        border: none;
+    }
+    [data-testid="stSidebar"] .stExpander summary {
+        padding: 0.5rem 0;
+        font-size: 0.9rem;
+    }
+    [data-testid="stSidebar"] h1 {
+        font-size: 1.8rem;
+        padding-top: 0;
+        margin-top: 0;
+    }
+    [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        font-size: 1.4rem;
+    }
+    [data-testid="stSidebar"] .stTabs [data-testid="stMarkdownContainer"] {
+        font-size: 0.9rem;
+    }
+    [data-testid="stSidebar"] .stTextArea textarea {
+        height: 80px !important;
+    }
+</style>
+''', unsafe_allow_html=True)
 
 with st.sidebar:
     # --- Submission Section ---

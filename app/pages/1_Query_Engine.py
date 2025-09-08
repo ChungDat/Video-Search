@@ -1,9 +1,5 @@
 import streamlit as st
 import os
-import sys
-import json
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 from PATH import METADATA_PATH, FPS_PATH, L28_PATH
 from utils import *
 from state import init_session_state
@@ -15,10 +11,6 @@ client = load_client()
 init_session_state()
 load_value("collection_name")
 load_value("file_content")
-
-# Load all object labels
-with open("all_objects.json", "r") as f:
-    all_objects = json.load(f)
 
 # Custom CSS for a more compact and polished sidebar
 st.markdown('''
@@ -108,7 +100,7 @@ with st.sidebar:
         filter_tags = sorted(list(set(filter_tags)))
     
     st.multiselect("Tags", options=filter_tags, key="filter_tags", help="Filter by tags within the selected packs.")
-    st.multiselect("Objects", options=all_objects, key="filter_objects", help="Filter by objects detected in the keyframes.")
+    st.multiselect("Objects", options=st.session_state.all_objects, key="filter_objects", help="Filter by objects detected in the keyframes.")
     
     with st.expander("Pack Descriptions"):
         st.text('''L21: tin tức, 60 giây sáng
@@ -185,7 +177,7 @@ if not st.session_state.sort_by_video:
 
             with cols[i % num_of_cols]:
                 st.image(frame_path, use_container_width=True)
-                st.caption(f"{origin} - {start_time}s")
+                st.caption(f"{origin} - {start_time:.2f}s")
                 if st.button("Details", key=f"image_{i}", use_container_width=True):
                     show_details(
                         origin=origin,
@@ -232,7 +224,7 @@ else:
 
                 with cols[j % num_of_cols]:
                     st.image(frame_path, use_container_width=True)
-                    st.caption(f"{start_time}s")
+                    st.caption(f"{start_time:.2f}s")
                     if st.button("Details", key=f"image_{candidate}_{j}", use_container_width=True):
                         show_details(
                             origin=origin,

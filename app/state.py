@@ -50,3 +50,7 @@ def init_session_state():
 
     if "log" not in st.session_state:
         st.session_state.log = []
+
+    # Load all object labels
+    if "all_objects" not in st.session_state:
+        st.session_state.all_objects = json.load(open("all_objects.json", "r"))
