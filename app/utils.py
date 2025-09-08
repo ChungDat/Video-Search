@@ -315,6 +315,7 @@ def create_filter_conditions(packs: list[str], tags: list[str]) -> list[models.F
     Returns:
         list[models.FieldCondition] | None: A lsit of conditions if packs or tags is provided. Returns None otherwise.
     """
+
     if not tags and not packs:
         return None
     conditions = []
