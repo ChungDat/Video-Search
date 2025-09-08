@@ -102,6 +102,17 @@ with st.sidebar:
     st.multiselect("Tags", options=filter_tags, key="filter_tags", help="Filter by tags within the selected packs.")
     st.multiselect("Objects", options=st.session_state.all_objects, key="filter_objects", help="Filter by objects detected in the keyframes.")
     
+    with st.expander(label="Ignore"):
+        for item in st.session_state.filter_ignore.copy():
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(item)
+            with col2:
+                if st.button("❌ Remove", key=f"remove_{item}"):
+                    st.session_state.filter_ignore.remove(item)
+                    st.rerun()
+
+
     with st.expander("Pack Descriptions"):
         st.text('''L21: tin tức, 60 giây sáng
 L22: tin tức, 60 giây chiều

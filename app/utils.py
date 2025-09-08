@@ -305,24 +305,24 @@ def load_value(key: str) -> None:
     st.session_state["_" + key] = st.session_state[key]
 
 @st.cache_data
-def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
+def create_filter(packs: list[str], tags: list[str]) -> models.Filter | None:
     """
-    Create filter to search for videos with specific tags.
+    Create filter to search for videos in packs with specific tags.
 
     Agrs:
-        videos (list[str]): A list of selected videos.
+        packs (list[str]): A list of selected packs.
         tags (list[str]): A list of selected tags.
     Returns:
-        models.Filter | None: A filter if videos or tags is provided. Returns None otherwise.
+        models.Filter | None: A filter if packs or tags is provided. Returns None otherwise.
     """
-    if not tags and not videos:
+    if not tags and not packs:
         return None
     conditions = []
-    if videos:
+    if packs:
         conditions.append(
             models.FieldCondition(
                 key="pack",
-                match=models.MatchAny(any=videos)
+                match=models.MatchAny(any=packs)
             )
         )
     if tags:
@@ -340,6 +340,44 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
     )
     return final_filter
 
+@st.cache_data
+def create_ignore_filter(origins: set[str]) -> models.Filter | None:
+    """
+    Create filter to ignore when searching for videos.
+
+    Agrs:
+        origins (list[str]): A list of videos to ignore.
+    Returns:
+        models.Filter | None: A filter if origins is provided. Returns None otherwise.
+    """
+
+    if not origins:
+        return None
+    conditions = []
+    for origin in origins:
+        pack = origin[:3]
+        video = origin[4:]
+        conditions.append(
+            models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="pack",
+                        match=models.MatchValue(value=pack)
+                    ),
+                    models.FieldCondition(
+                        key="video",
+                        match=models.MatchValue(value=video)
+                    ),
+                ]
+            )
+        )
+    if not conditions:
+        return None
+    final_filter = models.Filter(
+        must_not=conditions,
+    )
+    return final_filter
+
 def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
     """Perform search based on the current inputs and update results in session state."""
     text_queries = []
@@ -349,6 +387,7 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
 
     image_query = st.session_state.get("image_upload")
     query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
+    ignore_filter = create_ignore_filter(st.session_state.filter_ignore)
 
     if not text_queries and not image_query and not query_filter and not st.session_state.filter_objects:
         st.warning("Please enter a query or select a filter.")
@@ -380,12 +419,12 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             collection_name=collection_name,
             query_vector=final_query_vector,
             limit=limit,
-            query_filter=query_filter,
+            query_filter=models.Filter(must=[query_filter, ignore_filter]),
         )
     else: # No query, just filters
         st.session_state.results, _ = client.scroll(
             collection_name=collection_name,
-            scroll_filter=query_filter,
+            scroll_filter=models.Filter(must=[query_filter, ignore_filter]),
             limit=limit
         )
 
@@ -460,11 +499,16 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
                 minutes = selected_seconds // 60
                 seconds = selected_seconds % 60
                 
-                st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
-                
-                # Update calculator_index based on slider
-                calculator_index = int(selected_seconds * st.session_state.fps)
-                st.write(f"Frame Index: {calculator_index}")
+                sub_cols = st.columns(2)
+                with sub_cols[0]:
+                    st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
+                    
+                    # Update calculator_index based on slider
+                    calculator_index = int(selected_seconds * st.session_state.fps)
+                    st.write(f"Frame Index: {calculator_index}")
+                with sub_cols[1]:
+                    if st.button("Ignore this video"):
+                        st.session_state.filter_ignore.add(origin)
 
         with cols[1]:
             st.image(frame_path, use_container_width=True)
