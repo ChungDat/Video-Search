@@ -191,20 +191,20 @@ with st.container():
                 else:
                     video_data = get_frame_url(FPS_PATH, origin, metadata)
 
-            with cols[i % num_of_cols]:
-                st.image(frame_path, use_container_width=True)
-                st.caption(f"{origin} - {start_time:.2f}s")
-                if st.button("Details", key=f"image_{i}", width="stretch"):
-                    show_details(
-                        origin=origin,
-                        frame_index=frame_index,
-                        frame=frame,
-                        data=video_data,
-                        frame_path=frame_path,
-                        start_time=start_time,
-                        fps_file=FPS_PATH,
-                        video_name=origin,
-                    )
+                with cols[i % num_of_cols]:
+                    st.image(frame_path, use_container_width=True)
+                    st.caption(f"{origin} - {start_time:.2f}s")
+                    if st.button("Details", key=f"image_{i}", width="stretch"):
+                        show_details(
+                            origin=origin,
+                            frame_index=frame_index,
+                            frame=frame,
+                            data=video_data,
+                            frame_path=frame_path,
+                            start_time=start_time,
+                            fps_file=FPS_PATH,
+                            video_name=origin,
+                        )
         else:
             st.info("No results to display. Run a search to see results here.")
     else:
@@ -241,7 +241,7 @@ with st.container():
                     with cols[j % num_of_cols]:
                         st.image(frame_path, width="stretch")
                         st.caption(f"{start_time:.2f}s")
-                        if st.button("Details", key=f"image_{candidate}_{j}", use_container_width=True):
+                        if st.button("Details", key=f"image_{candidate}_{j}", width="stretch"):
                             show_details(
                                 origin=origin,
                                 frame_index=frame_index,
