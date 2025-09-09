@@ -1,15 +1,18 @@
-from __future__ import annotations # for type hint
 import pandas as pd
 import streamlit as st
+import numpy as np
 import os
 import json
 import cv2
-from cap_from_youtube import cap_from_youtube
-import numpy as np
 import time
-from qdrant_client import QdrantClient
+from cap_from_youtube import cap_from_youtube
 from sentence_transformers import SentenceTransformer
 from qdrant_client.http import models
+from qdrant_client import QdrantClient
+from dotenv import load_dotenv
+from PATH import METADATA_PATH
+from collections import Counter
+from collections import defaultdict
 
 ##########################
 # PROCESS VIDEO FUNCTION #
@@ -68,7 +71,7 @@ def get_video_fps(file: str, video: str) -> float:
 
 def get_video_duration(video_name: str) -> int:
     """Gets the duration of a video in seconds."""
-    from PATH import METADATA_PATH
+
     metadata = get_video_metadata(METADATA_PATH, video_name, ["length"])
     return metadata.get("length", 0)
 
@@ -293,7 +296,7 @@ def clear_input() -> None:
 def add_answer(answer: str) -> None:
     st.session_state.file_content += answer + "\n"
     
-def clear_submission():
+def clear_submission() -> None:
     st.session_state.file_name = ""
     st.session_state.file_content = ""
 
@@ -304,25 +307,25 @@ def load_value(key: str) -> None:
     st.session_state["_" + key] = st.session_state[key]
 
 @st.cache_data
-def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
+def create_filter_conditions(packs: list[str], tags: list[str]) -> list[models.FieldCondition] | None:
     """
-    Create filter to search for videos with specific tags.
+    Create conditions to search for videos in packs with specific tags.
 
     Agrs:
-        videos (list[str]): A list of selected videos.
+        packs (list[str]): A list of selected packs.
         tags (list[str]): A list of selected tags.
     Returns:
-        models.Filter | None: A filter if videos or tags is provided. Returns None otherwise.
+        list[models.FieldCondition] | None: A lsit of conditions if packs or tags is provided. Returns None otherwise.
     """
-    from qdrant_client.http import models
-    if not tags and not videos:
+
+    if not tags and not packs:
         return None
     conditions = []
-    if videos:
+    if packs:
         conditions.append(
             models.FieldCondition(
                 key="pack",
-                match=models.MatchAny(any=videos)
+                match=models.MatchAny(any=packs)
             )
         )
     if tags:
@@ -335,27 +338,41 @@ def create_filter(videos: list[str], tags: list[str]) -> models.Filter | None:
             )
     if not conditions:
         return None
-    if videos:
+    return conditions
+
+@st.cache_data
+def create_ignore_condition(origins: set[str]) -> list[models.FieldCondition] | None:
+    """
+    Create conditions to ignore when searching for videos.
+
+    Agrs:
+        origins (list[str]): A list of videos to ignore.
+    Returns:
+        list[models.FieldCondition] | None: A list of conditions if origins is provided. Returns None otherwise.
+    """
+
+    if not origins:
+        return None
+    conditions = []
+    for origin in origins:
+        pack, video = origin.split('_')
         conditions.append(
-            models.FieldCondition(
-                key="pack",
-                match=models.MatchAny(any=videos)
+            models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="pack",
+                        match=models.MatchValue(value=pack)
+                    ),
+                    models.FieldCondition(
+                        key="video",
+                        match=models.MatchValue(value=video)
+                    ),
+                ]
             )
         )
-    if tags:
-        for tag in tags:
-            conditions.append(
-                models.FieldCondition(
-                    key="tags",
-                    match=models.MatchValue(value=tag)
-                )
-            )
     if not conditions:
         return None
-    final_filter = models.Filter(
-        must=conditions,
-    )
-    return final_filter
+    return conditions
 
 def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
     """Perform search based on the current inputs and update results in session state."""
@@ -365,17 +382,10 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             text_queries.append(inp["query"])
 
     image_query = st.session_state.get("image_upload")
-def search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
-    """Perform search based on the current inputs and update results in session state."""
-    text_queries = []
-    for inp in st.session_state.inputs:
-        if inp["query"]:
-            text_queries.append(inp["query"])
+    query_condition = create_filter_conditions(st.session_state.filter_packs, st.session_state.filter_tags)
+    ignore_condition = create_ignore_condition(st.session_state.filter_ignore)
 
-    image_query = st.session_state.get("image_upload")
-    query_filter = create_filter(st.session_state.filter_packs, st.session_state.filter_tags)
-
-    if not text_queries and not image_query and not query_filter and not st.session_state.filter_objects:
+    if not text_queries and not image_query and not query_condition and not st.session_state.filter_objects:
         st.warning("Please enter a query or select a filter.")
         return
 
@@ -405,12 +415,12 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             collection_name=collection_name,
             query_vector=final_query_vector,
             limit=limit,
-            query_filter=query_filter,
+            query_filter=models.Filter(must=query_condition, must_not=ignore_condition),
         )
     else: # No query, just filters
         st.session_state.results, _ = client.scroll(
             collection_name=collection_name,
-            scroll_filter=query_filter,
+            scroll_filter=models.Filter(must=query_condition, must_not=ignore_condition),
             limit=limit
         )
 
@@ -418,14 +428,14 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
     if st.session_state.filter_objects:
         filtered_results = []
         # If no other filters are applied, we need to get all points first
-        if not query_filter and not query_vectors:
+        if not query_condition and not query_vectors:
             all_results, _ = client.scroll(collection_name=collection_name, limit=10000) # A high limit to get all points
             st.session_state.results = all_results
 
         for hit in st.session_state.results:
             video_name = hit.payload.get("pack") + '_' + hit.payload.get("video")
             frame_file = hit.payload.get("frame")
-            object_data = get_object_data("samples/objects", video_name, frame_file)
+            object_data = get_object_data("objects", video_name, frame_file)
             if all(obj in object_data for obj in st.session_state.filter_objects):
                 filtered_results.append(hit)
         st.session_state.results = filtered_results
@@ -441,11 +451,118 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             seen.add(origin)
     st.session_state.results_sorted = sorted(
         st.session_state.results,
-        key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
+        key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("frame_index"))
     )
     st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
+    
+def rerank_temporal_queries(results):
+    # Step 1: collect payloads per query for frequency
+    payloads_per_query = []
+    for resp in results:
+        query_payloads = {
+            p.payload.get("pack") + '_' + p.payload.get("video")
+            for p in resp.points
+        }
+        payloads_per_query.append(query_payloads)
 
-def save_log():
+    freq = Counter()
+    for query_set in payloads_per_query:
+        freq.update(query_set)
+
+    # Step 2: group all points by payload, storing query index too
+    groups = defaultdict(list)
+    for q_idx, resp in enumerate(results):
+        for p in resp.points:
+            key = p.payload.get("pack") + '_' + p.payload.get("video")
+            if groups[key] and groups[key][0][0] != 0:
+                continue
+            groups[key].append((q_idx, p))  # store query index
+
+    # Step 3: sort groups by frequency, then best score
+    def group_sort_key(item):
+        payload, pts = item
+        return (
+            -freq[payload],                        # more queries first
+            -max(p.score for _, p in pts)          # best score in group
+        )
+    
+    sorted_groups = sorted(groups.items(), key=group_sort_key)
+    st.session_state.origin_rank = []
+    seen = set()
+    for origin, pts in sorted_groups:
+        if origin not in seen:
+            seen.add(origin)
+            st.session_state.origin_rank.append(origin)
+
+    # Step 4: sort inside each group by query index first, then score
+    final_list = []
+    for payload, pts in sorted_groups:
+        pts_sorted = sorted(
+            pts,
+            key=lambda x: (x[0], -x[1].score)  # query index ascending, score descending
+        )
+        final_list.extend(p for _, p in pts_sorted)
+
+    return final_list
+
+def temporal_search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
+    """Perform search based on the current inputs and update results in session state."""
+    text_queries = []
+    for inp in st.session_state.inputs:
+        if inp["query"]:
+            text_queries.append(inp["query"])
+
+    image_query = st.session_state.get("image_upload")
+    query_condition = create_filter_conditions(st.session_state.filter_packs, st.session_state.filter_tags)
+    ignore_condition = create_ignore_condition(st.session_state.filter_ignore)
+
+    if not text_queries and not image_query:
+        st.warning("Please enter a query.")
+        return
+
+    query_vectors = []
+    log_query = []
+
+    for text_query in text_queries:
+        text_vector = model.encode(text_query).tolist()
+        query_vectors.append(text_vector)
+        log_query.append(text_query)
+
+    # if image_query:
+    #     from PIL import Image
+    #     image = Image.open(image_query).convert("RGB")
+    #     image_vector = model.encode(image).tolist()
+    #     query_vectors.append(image_vector)
+
+    search_queries = [
+        models.QueryRequest(query=query_vector, filter=models.Filter(must=query_condition, must_not=ignore_condition), limit=limit, with_payload=True) for query_vector in query_vectors
+    ]
+
+    results = client.query_batch_points(
+        collection_name=collection_name,
+        requests=search_queries,
+    )
+
+    # # Post-filter by objects
+    # if st.session_state.filter_objects:
+    #     filtered_results = []
+
+    #     for result in results:
+    #         filtered_result = []
+    #         for hit in result:
+    #             video_name = hit.payload.get("pack") + '_' + hit.payload.get("video")
+    #             frame_file = hit.payload.get("frame")
+    #             object_data = get_object_data("objects", video_name, frame_file)
+    #             if all(obj in object_data for obj in st.session_state.filter_objects):
+    #                 filtered_result.append(hit)
+    #         filtered_results.append(filtered_result)
+    #     st.session_state.results = filtered_results
+
+    st.session_state.temporal_results = rerank_temporal_queries(results)
+
+    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
+
+def save_log() -> None:
     with open("log.json", 'w') as f:
         json.dump(st.session_state.log, f)
         st.success("Successfully dump log to log.json")
@@ -475,7 +592,7 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
     calculator_index = int(start_time * st.session_state.fps)
 
     with detail_container:
-        cols = st.columns([0.3, 0.3])
+        cols = st.columns([0.65, 0.35])
         with cols[0]:
             st.video(data, start_time=start_time)
             duration = get_video_duration(video_name)
@@ -485,11 +602,16 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
                 minutes = selected_seconds // 60
                 seconds = selected_seconds % 60
                 
-                st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
-                
-                # Update calculator_index based on slider
-                calculator_index = int(selected_seconds * st.session_state.fps)
-                st.write(f"Frame Index: {calculator_index}")
+                sub_cols = st.columns(2)
+                with sub_cols[0]:
+                    st.write(f"Selected Time: {minutes:02d}:{seconds:02d} | FPS: {st.session_state.fps:.2f}")
+                    
+                    # Update calculator_index based on slider
+                    calculator_index = int(selected_seconds * st.session_state.fps)
+                    st.write(f"Frame Index: {calculator_index}")
+                with sub_cols[1]:
+                    if st.button("Ignore this video"):
+                        st.session_state.filter_ignore.add(origin)
 
         with cols[1]:
             st.image(frame_path, use_container_width=True)
@@ -504,13 +626,13 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
 
 @st.cache_resource
 def load_model() -> SentenceTransformer:
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer("/app/models/clip")
+    
+    model = SentenceTransformer('clip-ViT-B-32')
     return model
 
 @st.cache_resource
 def load_client() -> QdrantClient:
-    from qdrant_client import QdrantClient
+    load_dotenv()
     client = QdrantClient(
         url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io", 
         api_key=os.getenv("QDRANT_TOKEN_READ"),

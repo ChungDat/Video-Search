@@ -27,6 +27,9 @@ def init_session_state():
     if "results_sorted" not in st.session_state:
         st.session_state.results_sorted = []
 
+    if "temporal_results" not in st.session_state:
+        st.session_state.temporal_results = []
+
     if "video_list" not in st.session_state:
         st.session_state.video_list = []
 
@@ -50,3 +53,13 @@ def init_session_state():
 
     if "log" not in st.session_state:
         st.session_state.log = []
+
+    # Load all object labels
+    if "all_objects" not in st.session_state:
+        st.session_state.all_objects = json.load(open("all_objects.json", "r"))
+
+    if "filter_ignore" not in st.session_state:
+        st.session_state.filter_ignore = set()
+
+    if "filter_objects" not in st.session_state:
+        st.session_state.filter_objects = []
