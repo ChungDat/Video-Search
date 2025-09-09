@@ -99,19 +99,19 @@ with st.container():
             else:
                 origins = [st.session_state.seek_pack + '_' + video for video in st.session_state.available_videos_per_pack[st.session_state.seek_pack]]
 
-            for i, origin in enumerate(origins):
-                with cols[i % 10]:
-                    frame = os.path.join(KEYFRAMES_PATH, origin, "001.jpg")
-                    if st.session_state.seek_pack == "L28":
-                        video_data = os.path.join(L28_PATH, origin + ".mp4")
-                    else:
-                        metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
-                        video_data = get_frame_url(FPS_PATH, origin, metadata)
-                    if st.button(label=origin, key=f"video_{i}", width='content'): 
-                        show_details(origin=origin,
-                                    frame_index=0,
-                                    frame="001.jpg",
-                                    data=video_data,
-                                    frame_path=frame,
-                                    fps_file=FPS_PATH,
-                                    video_name=origin)
+        for i, origin in enumerate(origins):
+            with cols[i % 10]:
+                frame = os.path.join(KEYFRAMES_PATH, origin, "001.jpg")
+                if st.session_state.seek_pack == "L28":
+                    video_data = os.path.join(L28_PATH, origin + ".mp4")
+                else:
+                    metadata = get_video_metadata(METADATA_PATH, origin, ["watch_url"])
+                    video_data = get_frame_url(FPS_PATH, origin, metadata)
+                if st.button(label=origin, key=f"video_{i}", width='content'): 
+                    show_details(origin=origin,
+                                frame_index=0,
+                                frame="001.jpg",
+                                data=video_data,
+                                frame_path=frame,
+                                fps_file=FPS_PATH,
+                                video_name=origin)
