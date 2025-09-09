@@ -11,6 +11,8 @@ from qdrant_client.http import models
 from qdrant_client import QdrantClient
 from dotenv import load_dotenv
 from PATH import METADATA_PATH
+from collections import Counter
+from collections import defaultdict
 
 ##########################
 # PROCESS VIDEO FUNCTION #
@@ -449,8 +451,115 @@ def search_query(model: SentenceTransformer, client: QdrantClient, collection_na
             seen.add(origin)
     st.session_state.results_sorted = sorted(
         st.session_state.results,
-        key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("keyframe_id"))
+        key=lambda x: (st.session_state.origin_rank.index(x.payload.get("pack") + '_' + x.payload.get("video")), x.payload.get("frame_index"))
     )
+    st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
+    
+def rerank_temporal_queries(results):
+    # Step 1: collect payloads per query for frequency
+    payloads_per_query = []
+    for resp in results:
+        query_payloads = {
+            p.payload.get("pack") + '_' + p.payload.get("video")
+            for p in resp.points
+        }
+        payloads_per_query.append(query_payloads)
+
+    freq = Counter()
+    for query_set in payloads_per_query:
+        freq.update(query_set)
+
+    # Step 2: group all points by payload, storing query index too
+    groups = defaultdict(list)
+    for q_idx, resp in enumerate(results):
+        for p in resp.points:
+            key = p.payload.get("pack") + '_' + p.payload.get("video")
+            if groups[key] and groups[key][0][0] != 0:
+                continue
+            groups[key].append((q_idx, p))  # store query index
+
+    # Step 3: sort groups by frequency, then best score
+    def group_sort_key(item):
+        payload, pts = item
+        return (
+            -freq[payload],                        # more queries first
+            -max(p.score for _, p in pts)          # best score in group
+        )
+    
+    sorted_groups = sorted(groups.items(), key=group_sort_key)
+    st.session_state.origin_rank = []
+    seen = set()
+    for origin, pts in sorted_groups:
+        if origin not in seen:
+            seen.add(origin)
+            st.session_state.origin_rank.append(origin)
+
+    # Step 4: sort inside each group by query index first, then score
+    final_list = []
+    for payload, pts in sorted_groups:
+        pts_sorted = sorted(
+            pts,
+            key=lambda x: (x[0], -x[1].score)  # query index ascending, score descending
+        )
+        final_list.extend(p for _, p in pts_sorted)
+
+    return final_list
+
+def temporal_search_query(model: SentenceTransformer, client: QdrantClient, collection_name: str, limit: int = 200) -> None:
+    """Perform search based on the current inputs and update results in session state."""
+    text_queries = []
+    for inp in st.session_state.inputs:
+        if inp["query"]:
+            text_queries.append(inp["query"])
+
+    image_query = st.session_state.get("image_upload")
+    query_condition = create_filter_conditions(st.session_state.filter_packs, st.session_state.filter_tags)
+    ignore_condition = create_ignore_condition(st.session_state.filter_ignore)
+
+    if not text_queries and not image_query:
+        st.warning("Please enter a query.")
+        return
+
+    query_vectors = []
+    log_query = []
+
+    for text_query in text_queries:
+        text_vector = model.encode(text_query).tolist()
+        query_vectors.append(text_vector)
+        log_query.append(text_query)
+
+    # if image_query:
+    #     from PIL import Image
+    #     image = Image.open(image_query).convert("RGB")
+    #     image_vector = model.encode(image).tolist()
+    #     query_vectors.append(image_vector)
+
+    search_queries = [
+        models.QueryRequest(query=query_vector, filter=models.Filter(must=query_condition, must_not=ignore_condition), limit=limit, with_payload=True) for query_vector in query_vectors
+    ]
+
+    results = client.query_batch_points(
+        collection_name=collection_name,
+        requests=search_queries,
+    )
+
+    # # Post-filter by objects
+    # if st.session_state.filter_objects:
+    #     filtered_results = []
+
+    #     for result in results:
+    #         filtered_result = []
+    #         for hit in result:
+    #             video_name = hit.payload.get("pack") + '_' + hit.payload.get("video")
+    #             frame_file = hit.payload.get("frame")
+    #             object_data = get_object_data("objects", video_name, frame_file)
+    #             if all(obj in object_data for obj in st.session_state.filter_objects):
+    #                 filtered_result.append(hit)
+    #         filtered_results.append(filtered_result)
+    #     st.session_state.results = filtered_results
+
+    st.session_state.temporal_results = rerank_temporal_queries(results)
+
     st.session_state.log.append({"collection": collection_name, "query": log_query, "filter_packs": st.session_state.filter_packs, "filter_tags": st.session_state.filter_tags, "filter_objects": st.session_state.filter_objects})
 
 def save_log() -> None:
