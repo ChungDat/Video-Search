@@ -11,6 +11,7 @@ client = load_client()
 init_session_state()
 load_value("collection_name")
 load_value("file_content")
+disable_scroll_bar()
 
 # Custom CSS for a more compact and polished sidebar
 st.markdown('''

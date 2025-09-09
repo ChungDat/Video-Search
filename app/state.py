@@ -61,5 +61,5 @@ def init_session_state():
     if "filter_ignore" not in st.session_state:
         st.session_state.filter_ignore = set()
 
-    if "filter_objects" not in st.session_state:
-        st.session_state.filter_objects = []
+    # if "filter_objects" not in st.session_state:
+    #     st.session_state.filter_objects = []

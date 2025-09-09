@@ -5,12 +5,13 @@ from utils import *
 from state import init_session_state
 
 st.set_page_config(page_title="Query Engine", layout='wide')
-
+st.empty()
 model = load_model()
 client = load_client()
 init_session_state()
 load_value("collection_name")
 load_value("file_content")
+disable_scroll_bar()
 
 # Custom CSS for a more compact and polished sidebar
 st.markdown('''
@@ -100,7 +101,7 @@ with st.sidebar:
         filter_tags = sorted(list(set(filter_tags)))
     
     st.multiselect("Tags", options=filter_tags, key="filter_tags", help="Filter by tags within the selected packs.")
-    # st.multiselect("Objects", options=st.session_state.all_objects, key="filter_objects", help="Filter by objects detected in the keyframes.")
+    st.multiselect("Objects", options=st.session_state.all_objects, key="filter_objects", help="Filter by objects detected in the keyframes.")
     
     with st.expander(label="Ignore"):
         for item in st.session_state.filter_ignore.copy():
@@ -170,7 +171,7 @@ with cols[1]:
         st.write(f"**{len(st.session_state.temporal_results)} results**")
 
 
-if st.session_state.results:
+if st.session_state.temporal_results:
     for i, candidate in enumerate(st.session_state.origin_rank):
         video_hits = []
         for hit in st.session_state.temporal_results:
