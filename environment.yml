@@ -1,0 +1,14 @@
+name: video-search
+channels:
+  - default
+  - conda-forge
+dependencies:
+  - python=3.11
+  - sentence-transformers
+  - opencv-python
+  - python-dotenv
+  - streamlit
+  - pip
+  - pip:
+      - qdrant-client
+      - cap-from-youtube
