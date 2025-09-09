@@ -9,7 +9,7 @@ from cap_from_youtube import cap_from_youtube
 from sentence_transformers import SentenceTransformer
 from qdrant_client.http import models
 from qdrant_client import QdrantClient
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from PATH import METADATA_PATH
 from collections import Counter
 from collections import defaultdict
@@ -626,13 +626,11 @@ def show_details(origin: str, frame_index: int, frame: str, data: str, frame_pat
 
 @st.cache_resource
 def load_model() -> SentenceTransformer:
-    
-    model = SentenceTransformer('clip-ViT-B-32')
+    model = SentenceTransformer("/app/models/clip")
     return model
 
 @st.cache_resource
 def load_client() -> QdrantClient:
-    load_dotenv()
     client = QdrantClient(
         url="https://9bf65806-b1f1-498b-b309-079694a5a23b.us-east4-0.gcp.cloud.qdrant.io", 
         api_key=os.getenv("QDRANT_TOKEN_READ"),
